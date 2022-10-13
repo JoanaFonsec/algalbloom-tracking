@@ -37,7 +37,7 @@ from publishers.positions import publish_vp
 
 # Gradient estimation
 from estimators.gp import GPEstimator
-
+from estimators.lsq import LSQEstimator
 
 # Constants
 CHLOROPHYLL_TOPIC = '/sam/algae_tracking/chlorophyll_sampling'
@@ -170,6 +170,7 @@ class algalbloom_tracker_node(object):
 
         # Setup estimator
         self.est = GPEstimator(kernel=self.kernel, s=self.std, range_m=self.range, params=self.params)
+        # self.est = LSQEstimator(s=self.std, range_m=self.range)
 
         # Subscribe to topics
         self.depth_sub = rospy.Subscriber(self.gps_topic, NavSatFix, self.lat_lon__cb)
