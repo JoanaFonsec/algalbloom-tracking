@@ -3,16 +3,9 @@
 # vim:fenc=utf-8
 
 # Python imports
-from array import array
-import time
-import math
 import numpy as np
-import scipy.io
-from scipy.interpolate import RegularGridInterpolator
 import sklearn.gaussian_process as gp
 from scipy.spatial.distance import cdist
-from scipy.spatial import distance
-import signal
 
 # Utils
 from utils import Utils
