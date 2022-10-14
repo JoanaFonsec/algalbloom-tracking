@@ -27,6 +27,19 @@ class LSQEstimator:
     """
     def est_grad(self, X, y, dist_metric='euclidean'):
 
-        lsq_solution = np.linalg.lstsq(X,y)
-        
-        return lsq_solution
+        if len(X[0]) != len(X[1]):
+            raise ValueError("Estimation: Coordinates dimensions does not match.")
+
+        if len(X[0]) != len(y):
+            raise ValueError("Estimation: y must have the same length as x.")
+
+        # A = [x 1]
+        A = np.vstack([X[0], X[1], np.ones(len(X[0]))]).T
+
+        # y = [delta_vector, delta_zero]
+        y = y[:, np.newaxis]
+
+        # LSQ takes in positions and measurements and returns the gradient
+        self.alpha, self.beta, self.delta_zero = np.linalg.lstsq(A, y, rcond=None)[0].squeeze()
+
+        return self.alpha, self.beta, self.delta_zero
