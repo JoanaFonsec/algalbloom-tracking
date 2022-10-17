@@ -4,7 +4,7 @@
 # https://github.com/avrocha/front-tracking-algorithm
 
 import sys
-from copy import deepcopy
+
 import numpy as np
 import h5py as h5
 import matplotlib.pyplot as plt
@@ -18,9 +18,8 @@ from argparse import ArgumentParser
 
 import geopy.distance
 
-MODE = 1
-
 # Setup plotting style
+
 # https://github.com/garrettj403/SciencePlots/issues/15
 
 plt.style.reload_library()
@@ -73,8 +72,6 @@ end_time = -1
 if args.time:
     start_time = float(args.time[0][0])
     end_time = float(args.time[0][1])
-    print("start", start_time)
-    print("end", end_time)
 
 # Read h5 file
 with h5.File(args.path, 'r') as f:
@@ -82,7 +79,7 @@ with h5.File(args.path, 'r') as f:
     lat = f["lat"][()]
     chl = f["chl"][()]
     time = f["time"][()]
-    traj = f["traj"][()]
+    t_traj = f["traj"][()]
     delta_vals = f["measurement_vals"][()]
     grad_vals = f["grad_vals"][()]
     delta_ref = f.attrs["delta_ref"]
@@ -91,17 +88,6 @@ with h5.File(args.path, 'r') as f:
     t_idx = f.attrs["t_idx"]
 
     attributes = f.attrs.items()
-#print("init lon", lon[0])
-#print("init lat", lat[0])
-
-if MODE == 1:
-    # Plot offsets - MODE 1
-    l_offset = 2.215 # 9.44 
-    lat_offset = 2.19 # 3.24 
-elif MODE == 2:
-    # Plot offsets - MODE 2
-    l_offset = 7.2788
-    lat_offset = 1.0505
 
 # Create data grid
 chl_interp = RegularGridInterpolator((lon, lat, time), chl)
@@ -115,13 +101,11 @@ def trim_zeros(arr):
      new_arr = arr[~np.all(arr == 0, axis=1)]
      return new_arr
 
-
 # Change n, offset values bellow to plot different parts of the trajectory
-traj = trim_zeros(traj)
-
+traj = trim_zeros(t_traj)
+print(traj)
 n = 0
 offset = traj.shape[0]-1
-#print(offset)
 
 if traj.shape[1] == 3:
     t_idx = np.argmin(np.abs(traj[n+offset,-1] - time))
@@ -134,11 +118,11 @@ if sys.version_info.major == 2:
 
 def plot_trajectory(axis, show_contour_legend = False):
     """ Plot SAM trajectory """
-    xx, yy = np.meshgrid(lon+l_offset, lat+lat_offset, indexing='ij')
+    xx, yy = np.meshgrid(lon, lat, indexing='ij')
     p = axis.pcolormesh(xx, yy, chl[:,:,t_idx], cmap='viridis', shading='auto', vmin=0, vmax=10)
     cs = axis.contour(xx, yy, chl[:,:,t_idx], levels=[delta_ref])
     axis.clabel(cs, inline=1, fontsize=10)
-    axis.plot(traj[n:n+offset,0]+l_offset, traj[n:n+offset,1]+lat_offset, 'r', linewidth=3)
+    axis.plot(traj[n:n+offset,0], traj[n:n+offset,1], 'r', linewidth=3)
 
     path = None
     if show_contour_legend:
@@ -152,7 +136,7 @@ def plot_trajectory(axis, show_contour_legend = False):
             if path_length>longest_path:
                 longest_path = path_length
                 path  = i
-        print(longest_path)
+
         # plt.figure()
         # x = path.vertices[:, 0]
         # y = path.vertices[:, 1]
@@ -160,12 +144,9 @@ def plot_trajectory(axis, show_contour_legend = False):
         # plt.plot(traj[n:n+offset,0], traj[n:n+offset,1], 'r', linewidth=3)
         # plt.title('Reference path')
         # plt.legend(['Reference path','True path'])
-        #path.vertices[:, 0] = path.vertices[:, 0] - l_offset
-        #path.vertices[:, 1] = path.vertices[:, 1] - lat_offset
-        print("Just a vertice: ", path.vertices[0,:])
+        
         path = path.vertices
 
-    
     return p,path
 
 def plot_inset(axis,inset,zoom):
@@ -314,12 +295,18 @@ if args.grad_error or args.ref:
         gt_gradient = (RegularGridInterpolator((lon, lat), gt_grad[0]/gt_grad_norm),
                     RegularGridInterpolator((lon, lat), gt_grad[1]/gt_grad_norm))
         
+        print("Printing trajectory points")
+        print(traj[317,:], delta_vals[317])
+        print(traj[318,:], delta_vals[318])
+        print(traj[319,:], delta_vals[319])
+        print(traj[320,:], delta_vals[320])
         # Compute ground truth gradients
         for i in range(1,delta_vals.shape[0]-1):
             if i % 2000 == 0:
                 print("Computing gradient... Current iteration:", i)
-
+            
             x = int(i*meas_per)
+            #print("Iteration ", i, " out of ", delta_vals.shape[0]-1, " traj(x)= ",traj[x,0], traj[x,1])
             gt_grad_vals[i, 0] = gt_gradient[0]((traj[x,0], traj[x,1]))
             gt_grad_vals[i, 1] = gt_gradient[1]((traj[x,0], traj[x,1]))
             dot_prod_cos[i] = np.dot(grad_vals[i], gt_grad_vals[i]) / (np.linalg.norm(grad_vals[i]) * np.linalg.norm(gt_grad_vals[i]))
@@ -432,25 +419,21 @@ if args.ref_error:
     true_path = true_path.transpose()
 
     # Tree struct
-    local_path = deepcopy(ref_path)
-    local_path[:, 0] = local_path[:, 0] - l_offset
-    local_path[:, 1] = local_path[:, 1] - lat_offset
-    tree = spatial.KDTree(local_path)
+    tree = spatial.KDTree(ref_path)
 
     print("Calculating distance error")
     percent = round(len(true_path)/100)*10
-    print("Percent: ", len(true_path))
     
     for ind, point in enumerate(true_path):
         # Closest point between true path and ref path
         __ ,index = tree.query(point)
 
         # Compute euclidean distance
-        distance = geopy.distance.geodesic(point, local_path[index]).m
+        distance = geopy.distance.geodesic(point, ref_path[index]).m
 
         dist[ind] = distance
-        # if ind % percent == 0:
-        #     print('Complete {:.2f} %'.format(ind/len(true_path)*100))
+        if ind % percent == 0:
+            print('Complete {:.2f} %'.format(ind/len(true_path)*100))
     
     fig, ax = plt.subplots(figsize=(15, 7))
     plt.plot(it,dist,'k')

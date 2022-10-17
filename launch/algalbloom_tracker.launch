@@ -14,7 +14,7 @@
 		<param name="wp_distance" value="15"/>
 		<param name="threshold" value="0.1"/>
 		<param name="estimation_trigger_val" value="45"/>
-		<param name="speed" value="5"/>	
+		<param name="speed" value="1"/>	
 		<param name="travel_rpm" value="800"/>
 		<param name="waypoint_tolerance" value="10"/>	
 		<param name="range" value="20"/>	
