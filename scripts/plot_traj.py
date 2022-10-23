@@ -73,8 +73,6 @@ end_time = -1
 if args.time:
     start_time = float(args.time[0][0])
     end_time = float(args.time[0][1])
-    print("start", start_time)
-    print("end", end_time)
 
 # Read h5 file
 with h5.File(args.path, 'r') as f:
@@ -91,8 +89,6 @@ with h5.File(args.path, 'r') as f:
     t_idx = f.attrs["t_idx"]
 
     attributes = f.attrs.items()
-#print("init lon", lon[0])
-#print("init lat", lat[0])
 
 if MODE == 1:
     # Plot offsets - MODE 1
@@ -280,7 +276,7 @@ if args.grad_error or args.ref_error or args.ref:
     idx_end = np.where(it >= end_time)[0][0]
     
     # Multipy end index by sampling rate to get index of last sample
-    # idx_end = idx_end*meas_per
+    # idx_end = idx_end*int(meas_per)
 
     # if idx_start and idx_end are empty, close the program and print error message
     if not idx_start.size or not idx_end.size:
@@ -424,8 +420,14 @@ if args.ref_error:
     it = np.linspace(0, time_step*(len(traj[:, 0])-1)/3600, len(traj[n:n+offset,0]))
 
     # Bound by time range
-    if args.time:
-        it = it + start_time
+    print("IT AT DISTANCE ERROR: ", it[0], " - ", it[-1])
+    #if args.time:
+    #    it = it + start_time
+    error_idx_start = np.where(it >= start_time)[0][0]
+    error_idx_end = np.where(it >= end_time)[0][0]
+
+    print("Start: ", error_idx_start, " - ", it[error_idx_start])
+    print("End: ", error_idx_end, " - ", it[error_idx_end])
 
     # Data matrices
     true_path = np.array([traj[n:n+offset,0], traj[n:n+offset,1]])
@@ -453,7 +455,7 @@ if args.ref_error:
         #     print('Complete {:.2f} %'.format(ind/len(true_path)*100))
     
     fig, ax = plt.subplots(figsize=(15, 7))
-    plt.plot(it,dist,'k')
+    plt.plot(it[error_idx_start:error_idx_end],dist[error_idx_start:error_idx_end],'k')
     plt.xlabel('Mission time [h]')
     plt.ylabel('Distance to front [m]')
     # plt.yscale("log")
@@ -464,19 +466,56 @@ if args.ref_error:
     plt.grid(True)
     save_figure(fig,"distance_error")
 
+def plot_trajectory_new(axis, start_idx, stop_idx, show_contour_legend = False):
+    """ Plot SAM trajectory """
+    xx, yy = np.meshgrid(lon+l_offset, lat+lat_offset, indexing='ij')
+    p = axis.pcolormesh(xx, yy, chl[:,:,t_idx], cmap='viridis', shading='auto', vmin=0, vmax=10)
+    cs = axis.contour(xx, yy, chl[:,:,t_idx], levels=[delta_ref])
+    axis.clabel(cs, inline=1, fontsize=10)
+    axis.plot(traj[start_idx:stop_idx,0]+l_offset, traj[start_idx:stop_idx,1]+lat_offset, 'r', linewidth=3)
+
+    path = None
+    if show_contour_legend:
+        # https://matplotlib.org/stable/gallery/images_contours_and_fields/contour_demo.html
+        # https://www.tutorialspoint.com/how-to-get-coordinates-from-the-contour-in-matplotlib
+
+        # Determine which path is the longest (treat this as the gradient path)
+        longest_path = 0
+        for i in cs.collections[0].get_paths():
+            path_length = i.vertices.shape[0]
+            if path_length>longest_path:
+                longest_path = path_length
+                path  = i
+                
+        print("Just a vertice: ", path.vertices[0,:])
+        path = path.vertices
+
+    
+    return p,path
 
 # Plot and save trajectory for specific time range
 if args.time:
+    lat_start = 21.09
+    lat_end = 21.17
+    lon_start = 61.54
+    lon_end = 61.58
 
+    # Time interval
+    it = np.linspace(0, time_step*(len(traj[:, 0])-1)/3600, len(traj[n:n+offset,0]))
+    error_idx_start = np.where(it >= start_time)[0][0]
+    error_idx_end = np.where(it >= end_time)[0][0]
+    
     # Plot trajectory
     fig, ax = plt.subplots(figsize=(15, 7))
-    p,ref_path = plot_trajectory(axis=ax,show_contour_legend=True)
+    p,ref_path = plot_trajectory_new(axis=ax, start_idx=error_idx_start, stop_idx=error_idx_end, show_contour_legend=True)
     ax.set_aspect('equal')
-    cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
+    # cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
     cp = fig.colorbar(p, cax=cax)
     cp.set_label("Chl a density [mm/mm3]")
     ax.set_xlabel("Longitude (degrees E)")
     ax.set_ylabel("Latitude (degrees N)")
+    ax.set_xlim([lat_start, lat_end])
+    ax.set_ylim([lon_start, lon_end])
     plt.grid(True)
     save_figure(fig,"trajectory_trimmed")
 
