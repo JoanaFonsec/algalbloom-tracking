@@ -3,6 +3,7 @@
 # Original author : Alexandre Rocha
 # https://github.com/avrocha/front-tracking-algorithm
 
+from calendar import c
 import sys
 from copy import deepcopy
 import numpy as np
@@ -15,12 +16,24 @@ from scipy.interpolate import RegularGridInterpolator
 from scipy import spatial
 
 from argparse import ArgumentParser
-
 import geopy.distance
 
+
+######################### MODES
 MODE = 1
 
+if MODE == 1:
+    # Plot offsets - MODE 1
+    l_offset = 2.215 # 9.44 
+    lat_offset = 2.19 # 3.24 
+elif MODE == 2:
+    # Plot offsets - MODE 2
+    l_offset = 7.2788
+    lat_offset = 1.0505
+################################
+
 # Setup plotting style
+
 # https://github.com/garrettj403/SciencePlots/issues/15
 
 plt.style.reload_library()
@@ -33,8 +46,9 @@ plt.rcParams.update({'xtick.labelsize': 20,
                     'legend.frameon' : True
                     })
 
+################################################################################ GET VARIABLES #######################################################
 
-# Added runtime arguments
+# Read runtime arguments
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("path", type=str, help="Path to the HDF5 file containing the processed data.")
@@ -67,14 +81,7 @@ if args.prefix:
 def save_figure(fig, name):
     fig.savefig("../plots/{}{}.{}".format(plot_name_prefix,name,extension),bbox_inches='tight')
 
-# Get start and end time from arguments
-start_time = -1
-end_time = -1
-if args.time:
-    start_time = float(args.time[0][0])
-    end_time = float(args.time[0][1])
-
-# Read h5 file
+##### Read h5 file
 with h5.File(args.path, 'r') as f:
     lon = f["lon"][()]
     lat = f["lat"][()]
@@ -84,62 +91,88 @@ with h5.File(args.path, 'r') as f:
     delta_vals = f["measurement_vals"][()]
     grad_vals = f["grad_vals"][()]
     delta_ref = f.attrs["delta_ref"]
-    time_step = f.attrs["meas_period"]
     meas_per = f.attrs["meas_period"]
     t_idx = f.attrs["t_idx"]
 
     attributes = f.attrs.items()
 
-if MODE == 1:
-    # Plot offsets - MODE 1
-    l_offset = 2.215 # 9.44 
-    lat_offset = 2.19 # 3.24 
-elif MODE == 2:
-    # Plot offsets - MODE 2
-    l_offset = 7.2788
-    lat_offset = 1.0505
+################################################################################ INIT #######################################################
 
 # Create data grid
 chl_interp = RegularGridInterpolator((lon, lat, time), chl)
 
-def trim_zeros(arr):
-     """Returns a trimmed view of an n-D array excluding any outer
-     regions which contain only zeros.
-     """
-     # slices = tuple(slice(idx.min(), idx.max() + 1) for idx in np.nonzero(arr))
-     # new_arr = arr.nonzero()
-     new_arr = arr[~np.all(arr == 0, axis=1)]
-     return new_arr
+# Trim zeros
+traj = traj[~np.all(traj == 0, axis=1)]
 
-
-# Change n, offset values bellow to plot different parts of the trajectory
-traj = trim_zeros(traj)
-
-n = 0
-offset = traj.shape[0]-1
-#print(offset)
-
-if traj.shape[1] == 3:
-    t_idx = np.argmin(np.abs(traj[n+offset,-1] - time))
+#if traj.shape[1] == 3:
+#    t_idx = np.argmin(np.abs(traj[n+offset,-1] - time))
 
 # Print attributes
 if sys.version_info.major == 2:
     for att in attributes:
         print("{} : {}".format(att[0],att[1]))
 
+# Get start and end time from arguments
+time_step = 1
+start_time = 0
+end_time = float(time_step*(len(traj[:, 0])-1)/3600)
+if args.time:
+    start_time = float(args.time[0][0])
+    end_time = float(args.time[0][1])
+
+# Determine start and stop indexes for the mission period 
+idx_start = int(3600 / time_step / meas_per * start_time) 
+idx_end = int(len(traj[:, 0]) / meas_per) 
+vector_length = idx_end - idx_start
+
+# Determine index of traj where AUV reaches the front
+idx_trig = 0
+for i in range(len(delta_vals)):
+    if delta_ref - 5e-3 <= delta_vals[i]:
+        idx_trig = i
+        break
+
+# Create mission time axis
+it = np.linspace(start_time, end_time, vector_length)
+idx_trig_time = it[idx_trig]
+
+# Print times to check
+print('it ', it[0], it[-1], len(it), ' idx_start ' ,idx_start, ' idx_end ', idx_end)
+print('len(traj) ', len(traj[:, 0])-1, ' len(grad) ', len(grad_vals[:, 0]), ' len(delta_vals) ', len(delta_vals))
+
+# Adjust all data
+print('start and end for traj: ', meas_per*idx_start, meas_per*idx_end-1)
+traj = traj[int(meas_per*idx_start):int(meas_per*idx_end),:]
+delta_vals = delta_vals[idx_start:idx_end]
+grad_vals = grad_vals[idx_start:idx_end,:]
+
+print('len(traj) ', len(traj[:, 0]), ' len(grad) ', len(grad_vals[:, 0]), ' len(delta_vals) ', len(delta_vals))
+
+
+# Print out distance travelled
+distances_between_samples = np.array([])
+for i in range(0, int(meas_per*vector_length-1)):
+
+    # Get distance between each point in the trajectory
+    distance = geopy.distance.geodesic((traj[i,1],traj[i,0]), (traj[i+1,1],traj[i+1,0])).m
+    distances_between_samples = np.append(distances_between_samples,distance)
+
+# Print out average speed, trajectory sampling rate is set at 1 Hz
+print("Average speed: {} m/s".format(np.mean(distances_between_samples)))
+
+
+############################################################################################### PLOT FUNCTIONS ####################################################
 
 def plot_trajectory(axis, show_contour_legend = False):
     """ Plot SAM trajectory """
     xx, yy = np.meshgrid(lon+l_offset, lat+lat_offset, indexing='ij')
     p = axis.pcolormesh(xx, yy, chl[:,:,t_idx], cmap='viridis', shading='auto', vmin=0, vmax=10)
     cs = axis.contour(xx, yy, chl[:,:,t_idx], levels=[delta_ref])
-    axis.clabel(cs, inline=1, fontsize=10)
-    axis.plot(traj[n:n+offset,0]+l_offset, traj[n:n+offset,1]+lat_offset, 'r', linewidth=3)
+    #axis.clabel(cs, inline=1, fontsize=10)
+    axis.plot(traj[:,0]+l_offset, traj[:,1]+lat_offset, 'r', linewidth=3)
 
     path = None
     if show_contour_legend:
-        # https://matplotlib.org/stable/gallery/images_contours_and_fields/contour_demo.html
-        # https://www.tutorialspoint.com/how-to-get-coordinates-from-the-contour-in-matplotlib
 
         # Determine which path is the longest (treat this as the gradient path)
         longest_path = 0
@@ -147,21 +180,10 @@ def plot_trajectory(axis, show_contour_legend = False):
             path_length = i.vertices.shape[0]
             if path_length>longest_path:
                 longest_path = path_length
-                path  = i
-        print(longest_path)
-        # plt.figure()
-        # x = path.vertices[:, 0]
-        # y = path.vertices[:, 1]
-        # plt.plot(x,y)
-        # plt.plot(traj[n:n+offset,0], traj[n:n+offset,1], 'r', linewidth=3)
-        # plt.title('Reference path')
-        # plt.legend(['Reference path','True path'])
-        #path.vertices[:, 0] = path.vertices[:, 0] - l_offset
-        #path.vertices[:, 1] = path.vertices[:, 1] - lat_offset
-        print("Just a vertice: ", path.vertices[0,:])
+                path = i    
+
         path = path.vertices
 
-    
     return p,path
 
 def plot_inset(axis,inset,zoom):
@@ -198,25 +220,21 @@ def plot_inset(axis,inset,zoom):
     axis.indicate_inset_zoom(axin,edgecolor="black",linestyle="-.")    
 
 
-# Plot trajectory
+############################################################################################# PLOT STUFF ###################################################
+
+##### Plot trajectory
 fig, ax = plt.subplots(figsize=(15, 7))
 p,ref_path = plot_trajectory(axis=ax,show_contour_legend=True)
 ax.set_aspect('equal')
 cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
 cp = fig.colorbar(p, cax=cax)
-cp.set_label("Chl a density [mm/mm3]")
+cp.set_label("Chl a concentration [mm/mm3]")
 ax.set_xlabel("Longitude (degrees E)")
 ax.set_ylabel("Latitude (degrees N)")
 plt.grid(True)
 
+
 if args.zoom:
-
-    # Show zoomed in portion of the trajectory
-    # https://matplotlib.org/stable/gallery/subplots_axes_and_figures/zoom_inset_axes.html
-    # https://stackoverflow.com/questions/13583153/how-to-zoomed-a-portion-of-image-and-insert-in-the-same-plot-in-matplotlib
-    # https://towardsdatascience.com/mastering-inset-axes-in-matplotlib-458d2fdfd0c0
-
-    # https://proplot.readthedocs.io/en/latest/insets_panels.html
 
     # Portion of figure to zoom
     a = 0.1
@@ -250,50 +268,8 @@ if args.zoom:
 #         ax.arrow(x=traj[index,0], y=traj[index,1], dx=0.00005*grad_vals[index][0], dy=0.00005*grad_vals[index][1], width=.00002)
 save_figure(fig, "traj")
 
-# Front detection idx and x-axis construction - only for full trajectories
-if args.grad_error or args.ref_error or args.ref:
-    idx_trig = 0
 
-    # Determine index of traj where AUV reaches the front
-    for i in range(len(delta_vals)):
-        if delta_ref - 5e-3 <= delta_vals[i]:
-            idx_trig = i
-            break
-
-    if traj.shape[1] == 3:
-        delta_t = (traj[-1,-1] - traj[0,-1])/3600
-        it = np.linspace(0, delta_t, len(delta_vals))
-
-    # Create mission time axis
-    elif traj.shape[1] == 2:
-        it = np.linspace(0, time_step*(len(traj[:, 0])-1)/3600, len(delta_vals))
-        idx_trig_time = it[idx_trig]
-
-    # Determine start and stop indexes for the mission period ================================
-    # Find index of numpy array where value is larger than specified time    
-    # Get index of start and end of mission
-    idx_start = np.where(it >= start_time)[0][0]
-    idx_end = np.where(it >= end_time)[0][0]
-    
-    # Multipy end index by sampling rate to get index of last sample
-    # idx_end = idx_end*int(meas_per)
-
-    # if idx_start and idx_end are empty, close the program and print error message
-    if not idx_start.size or not idx_end.size:
-        print("Error: start or end time out of range")
-        sys.exit()
-
-    print("Start time: ", it[idx_start])
-    print("End time: ", it[idx_end])
-
-    # Bound the mission to the specified time range, end_time == -1 means end of mission
-    if end_time == -1:
-        idx_end = len(it)-1
-    if start_time == -1:
-        idx_start = 0
-
-    # ===========================================================================
-
+################################################################################ PLOT GRADIENT #######################################################
 if args.grad_error or args.ref:
     
     # gt => ground truth
@@ -311,11 +287,9 @@ if args.grad_error or args.ref:
                     RegularGridInterpolator((lon, lat), gt_grad[1]/gt_grad_norm))
         
         # Compute ground truth gradients
-        for i in range(1,delta_vals.shape[0]-1):
-            if i % 2000 == 0:
-                print("Computing gradient... Current iteration:", i)
+        for i in range(1,vector_length):
+            x = int(meas_per*i)
 
-            x = int(i*meas_per)
             gt_grad_vals[i, 0] = gt_gradient[0]((traj[x,0], traj[x,1]))
             gt_grad_vals[i, 1] = gt_gradient[1]((traj[x,0], traj[x,1]))
             dot_prod_cos[i] = np.dot(grad_vals[i], gt_grad_vals[i]) / (np.linalg.norm(grad_vals[i]) * np.linalg.norm(gt_grad_vals[i]))
@@ -323,114 +297,54 @@ if args.grad_error or args.ref:
             grad_vals_cos[i] = grad_vals[i, 0] / np.linalg.norm(grad_vals[i])
             gt_grad_vals_cos[i] = gt_grad_vals[i, 0] / np.linalg.norm(gt_grad_vals[i])
 
-        # Bound the mission to the specified time range
-        if args.time:
-            gt_grad_vals = gt_grad_vals[idx_start:idx_end]
-            grad_vals = grad_vals[idx_start:idx_end]
-            dot_prod_cos = dot_prod_cos[idx_start:idx_end]
-            grad_vals_cos = grad_vals_cos[idx_start:idx_end]
-            gt_grad_vals_cos = gt_grad_vals_cos[idx_start:idx_end]
-            it = it[idx_start:idx_end]
-            delta_vals = delta_vals[idx_start:idx_end]
-            traj = traj[int(idx_start*time_step):int(idx_end*time_step)]
-
         # Determine gradient angle
         gt_grad_angles = np.arctan2(gt_grad_vals[:, 1],gt_grad_vals[:, 0])
         grad_angles = np.arctan2(grad_vals[:, 1],grad_vals[:, 0])
 
     grad_ref = np.ones(dot_prod_cos.shape)
     error = np.mean(np.abs(dot_prod_cos[idx_trig:] - grad_ref[idx_trig:])/grad_ref[idx_trig:]) * 100
-    print("Cosine average relative error = %.4f %%" % (error))
-    # Dot-product cosine plot
-    fig, ax = plt.subplots(figsize=(15, 7))
-    plt.plot(it, dot_prod_cos, 'k-', linewidth=0.8, label='Gradient deviation cosine')
-    plt.plot(it, grad_ref, 'r-', linewidth=1.5, label='Reference')
-    if idx_trig > idx_start:
-        plt.plot(np.tile(it[idx_trig], 10), np.linspace (np.min(grad_vals), 1.2, 10), 'r--')
-    plt.xlabel('Mission time [h]')
-    plt.ylabel('Cosine')
-    # plt.title("Gradient deviation cosine\nAverage relative error = %.4f %%" % (error))
-    plt.axis([it[0], np.max(it), -1.2, 1.2])
-    plt.legend(loc=4, shadow=True)
-    plt.grid(True)
-    save_figure(fig,"gradient_deviation_cosine")
-
-    # Cosine comparison
-    fig, ax = plt.subplots(figsize=(15, 7))
-    plt.plot(it, grad_vals_cos, 'k-', linewidth=0.8, label='Estimated from GP Model')
-    plt.plot(it, gt_grad_vals_cos, 'r-', linewidth=1.5, label='Ground truth')
-    if idx_trig > idx_start:
-        plt.plot(np.tile(it[idx_trig], 10), np.linspace(np.min(grad_vals), 1.2, 10), 'r--')
-    plt.xlabel('Mission time [h]')
-    plt.ylabel('Cosine')
-    # plt.title("Cosine of GT and Estimated gradient")
-    plt.axis([it[0], np.max(it), -1.2, 1.2])
-    plt.legend(loc=4, shadow=True)
-    plt.grid(True)
-    save_figure(fig,"cosine_comparison")
 
     # Plot gradient angle
     fig, ax = plt.subplots(figsize=(15, 7))
-    plt.plot(it, gt_grad_angles, 'r-', linewidth=0.8, label='Ground truth')
-    plt.plot(it, grad_angles, 'k-', linewidth=1.5, label='Estimated from GP Model')
+    plt.plot(it, gt_grad_angles, 'r-', linewidth=1, label='Ground truth')
+    plt.plot(it, grad_angles, 'k-', linewidth=1, label='Estimated from GP Model')
     plt.xlabel('Mission time [h]')
     plt.ylabel('Gradient [rad]')
     # plt.axis([0, np.max(it), -1.2, 1.2])
     plt.legend(loc=4, shadow=True)
     plt.grid(True)
+    plt.axis([it[0], it[-1], -3.15, 3.15])
     save_figure(fig,"gradient_angle")
 
-    # Plot gradients
-    # step = int(grad_vals.shape[0] / 20)
-    # for i in range(0, grad_vals.shape[0], step):
-    #     q = plt.quiver(traj[i,0], traj[i,1], grad_vals[i,0], grad_vals[i,1], color='black', width=0.004)
-    #     q_1 = plt.quiver(traj[i,0], traj[i,1], gt_grad_vals[i,0], gt_grad_vals[i,1], color='red', width=0.004)
-
-
-# Reference tracking error
+################################################################################ PLOT CHL #######################################################
 if args.ref:
     if idx_trig > idx_start: 
         error = np.mean(np.abs(delta_vals[idx_trig:] - delta_ref)/delta_ref)*100
     else:
         error = np.mean(np.abs(delta_vals - delta_ref)/delta_ref)*100
-    print("Reference average relative error = %.4f %%" % (error))
+    #print("Reference average relative error = %.4f %%" % (error))
     fig, ax = plt.subplots(figsize=(15, 7))
-    plt.plot(it, delta_vals, 'k-', linewidth=1, label="Measured Chl density")
-    plt.plot(it, np.tile(delta_ref, len(it)), 'r-', label="Chl density reference")
+    plt.plot(it, np.tile(delta_ref, vector_length), 'r-', label="Chl concentration reference")
+    plt.plot(it, delta_vals, 'k-', linewidth=1, label="Measured Chl concentration")
     if idx_trig > idx_start:
         plt.plot(np.tile(it[idx_trig], 10), np.linspace(np.min(delta_vals), delta_ref*1.4, 10), 'r--')
     plt.xlabel('Mission time [h]')
-    plt.ylabel('Chl a density [mm/mm3]')
+    plt.ylabel('Chl a concentration [mm/mm3]')
     # plt.axis([0, it[-1], np.min(delta_vals), 0.5+np.max(delta_vals)])
-    plt.axis([it[0], it[-1], 0, 12])
-    # plt.title("Measurements \n Average relative error = %.4f %%" % (error))
+    plt.axis([it[0], it[-1], 6, 9]) # 6,9 and 2,9
     plt.legend(loc=4, shadow=True)
     plt.grid(True)
     save_figure(fig,"reference_tracking")
 
 
-# Euclidean distance between position and ref position
+################################################################################ PLOT DISTANCE #######################################################
 if args.ref_error:
 
-    # https://stackoverflow.com/questions/10818546/finding-index-of-nearest-point-in-numpy-arrays-of-x-and-y-coordinates
-    # https://stackoverflow.com/questions/19412462/getting-distance-between-two-points-based-on-latitude-longitude
-
     # Array to store distance
-    dist = np.zeros(len(traj[n:n+offset,0]))
-    it = np.linspace(0, time_step*(len(traj[:, 0])-1)/3600, len(traj[n:n+offset,0]))
-
-    # Bound by time range
-    print("IT AT DISTANCE ERROR: ", it[0], " - ", it[-1])
-    #if args.time:
-    #    it = it + start_time
-    error_idx_start = np.where(it >= start_time)[0][0]
-    error_idx_end = np.where(it >= end_time)[0][0]
-
-    print("Start: ", error_idx_start, " - ", it[error_idx_start])
-    print("End: ", error_idx_end, " - ", it[error_idx_end])
+    dist = np.zeros(int(meas_per*vector_length))
 
     # Data matrices
-    true_path = np.array([traj[n:n+offset,0], traj[n:n+offset,1]])
+    true_path = np.array([traj[:,0], traj[:,1]])
     true_path = true_path.transpose()
 
     # Tree struct
@@ -438,46 +352,39 @@ if args.ref_error:
     local_path[:, 0] = local_path[:, 0] - l_offset
     local_path[:, 1] = local_path[:, 1] - lat_offset
     tree = spatial.KDTree(local_path)
-
-    print("Calculating distance error")
-    percent = round(len(true_path)/100)*10
-    print("Percent: ", len(true_path))
     
     for ind, point in enumerate(true_path):
         # Closest point between true path and ref path
         __ ,index = tree.query(point)
 
         # Compute euclidean distance
-        distance = geopy.distance.geodesic(point, local_path[index]).m
-
+        distance = geopy.distance.geodesic(point, ref_path[index]).m
         dist[ind] = distance
-        # if ind % percent == 0:
-        #     print('Complete {:.2f} %'.format(ind/len(true_path)*100))
     
+    # Create special time vector that fits traj
+    time_traj = np.linspace(start_time, end_time, meas_per*vector_length)
+
     fig, ax = plt.subplots(figsize=(15, 7))
-    plt.plot(it[error_idx_start:error_idx_end],dist[error_idx_start:error_idx_end],'k')
+    plt.plot(time_traj,dist,'k')
     plt.xlabel('Mission time [h]')
     plt.ylabel('Distance to front [m]')
-    # plt.yscale("log")
-    # plt.plot(np.tile(it[idx_trig], 10), np.linspace(np.min(delta_vals), delta_ref*1.4, 10), 'r--')
-    # plt.plot(np.tile(it[idx_trig], 10), np.linspace(np.min(delta_vals), delta_ref*1.4, 10), 'r--')
     if idx_trig_time>idx_start:
-        plt.plot(np.tile(idx_trig_time, 10), np.linspace(np.max(dist), 0, 10), 'r--')
+        plt.plot(np.tile(idx_trig_time, 10), np.linspace(np.max(dist), 0, 10), 'k--')
     plt.grid(True)
+    plt.axis([it[0], it[-1], 0, 370]) # 0,370 and 0,3100
     save_figure(fig,"distance_error")
 
-def plot_trajectory_new(axis, start_idx, stop_idx, show_contour_legend = False):
-    """ Plot SAM trajectory """
+##################################################################################################################################
+def plot_trajectory_new(axis, show_contour_legend = False):
+
     xx, yy = np.meshgrid(lon+l_offset, lat+lat_offset, indexing='ij')
     p = axis.pcolormesh(xx, yy, chl[:,:,t_idx], cmap='viridis', shading='auto', vmin=0, vmax=10)
     cs = axis.contour(xx, yy, chl[:,:,t_idx], levels=[delta_ref])
     axis.clabel(cs, inline=1, fontsize=10)
-    axis.plot(traj[start_idx:stop_idx,0]+l_offset, traj[start_idx:stop_idx,1]+lat_offset, 'r', linewidth=3)
+    axis.plot(traj[:,0]+l_offset, traj[:,1]+lat_offset, 'r', linewidth=3)
 
     path = None
     if show_contour_legend:
-        # https://matplotlib.org/stable/gallery/images_contours_and_fields/contour_demo.html
-        # https://www.tutorialspoint.com/how-to-get-coordinates-from-the-contour-in-matplotlib
 
         # Determine which path is the longest (treat this as the gradient path)
         longest_path = 0
@@ -486,11 +393,8 @@ def plot_trajectory_new(axis, start_idx, stop_idx, show_contour_legend = False):
             if path_length>longest_path:
                 longest_path = path_length
                 path  = i
-                
-        print("Just a vertice: ", path.vertices[0,:])
         path = path.vertices
 
-    
     return p,path
 
 # Plot and save trajectory for specific time range
@@ -500,24 +404,17 @@ if args.time:
     lon_start = 61.54
     lon_end = 61.58
 
-    # Time interval
-    it = np.linspace(0, time_step*(len(traj[:, 0])-1)/3600, len(traj[n:n+offset,0]))
-    error_idx_start = np.where(it >= start_time)[0][0]
-    error_idx_end = np.where(it >= end_time)[0][0]
-    
     # Plot trajectory
     fig, ax = plt.subplots(figsize=(15, 7))
-    p,ref_path = plot_trajectory_new(axis=ax, start_idx=error_idx_start, stop_idx=error_idx_end, show_contour_legend=True)
+    p,ref_path = plot_trajectory_new(axis=ax, show_contour_legend=True)
     ax.set_aspect('equal')
-    # cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
     cp = fig.colorbar(p, cax=cax)
-    cp.set_label("Chl a density [mm/mm3]")
+    cp.set_label("Chl a concentration [mm/mm3]")
     ax.set_xlabel("Longitude (degrees E)")
     ax.set_ylabel("Latitude (degrees N)")
     ax.set_xlim([lat_start, lat_end])
     ax.set_ylim([lon_start, lon_end])
     plt.grid(True)
     save_figure(fig,"trajectory_trimmed")
-
 
 plt.show()
