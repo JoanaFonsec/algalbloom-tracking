@@ -37,16 +37,6 @@ from publishers_and_services import publish_gradient, publish_waypoint, publish_
 from estimators.gp import GPEstimator
 from estimators.lsq import LSQEstimator
 
-# Constants
-CHLOROPHYLL_TOPIC = '/sam/algae_tracking/chlorophyll_sampling'
-GRADIENT_TOPIC = '/sam/algae_tracking/gradient'
-VITUAL_POSITION_TOPIC = '/sam/algae_tracking/vp'
-# LATLONG_TOPIC = '/sam/dr/lat_lon'
-GOT_TO_WAYPOINT_RESULT = '/sam/ctrl/goto_waypoint/result'
-LIVE_WP_BASE_TOPIC = 'sam/smarc_bt/live_wp/'
-WAPOINT_TOPIC=LIVE_WP_BASE_TOPIC+'wp'
-WAPOINT_ENABLE_TOPIC=LIVE_WP_BASE_TOPIC+'enable'
-
 class algalbloom_tracker_node(object):
 
     # Algal bloom tracker node
@@ -129,8 +119,7 @@ class algalbloom_tracker_node(object):
         self.enable_waypoint_following.data = True
 
         # Waypoint following publisher
-        self.waypoint_topic_type = GotoWaypoint
-        self.waypoint_pub = rospy.Publisher(self.wapoint_topic, self.waypoint_topic_type,queue_size=5)
+        self.waypoint_pub = rospy.Publisher(self.wapoint_topic, GotoWaypoint, queue_size=5)
 
         # Latlong to UTM service
         # wait for the latlon_to_utm service to exist
@@ -171,9 +160,8 @@ class algalbloom_tracker_node(object):
         # self.est = LSQEstimator(s=self.std, range_m=self.range)
 
         # Subscribe to topics
-        self.depth_sub = rospy.Subscriber(self.gps_topic, NavSatFix, self.lat_lon__cb)
-        # self.depth_sub = rospy.Subscriber(self.latlong_topic, GeoPoint, self.lat_lon__cb, queue_size=2)        
-        self.chlorophyll_sub = rospy.Subscriber(self.chlorophyll_topic, ChlorophyllSample, self.chlorophyl__cb, queue_size=2)      
+        self.depth_sub = rospy.Subscriber(self.gps_topic, NavSatFix, self.lat_lon__cb)      
+        self.chlorophyll_sub = rospy.Subscriber("~measurement", ChlorophyllSample, self.chlorophyl__cb, queue_size=2)      
         self.goal_reached_sub = rospy.Subscriber(self.got_to_waypoint_result, GotoWaypointActionResult, self.waypoint_reached__cb, queue_size=2)
 
         rospy.loginfo("Subscribed to {}".format(self.gps_topic))
