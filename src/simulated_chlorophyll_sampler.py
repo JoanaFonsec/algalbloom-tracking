@@ -33,7 +33,7 @@ LIVE_WP_BASE_TOPIC = 'sam/smarc_bt/live_wp/'
 WAPOINT_TOPIC=LIVE_WP_BASE_TOPIC+'wp'
 
 # Publishers
-from publishers.lat_lon_offset import publish_offset
+from publishers_and_services import publish_offset
 
 import math
 
@@ -119,16 +119,20 @@ class chlorophyll_sampler_node(object):
         # Publish offset (for the purpose of plottting in plot_live_grid)
         publish_offset(lat=self.gps_lat_offset,lon=self.gps_lon_offset,pub=self.lat_lon_offset_publisher)
 
-        # Offset position
-        self.lat = fb.latitude # - self.gps_lat_offset 
-        self.lon = fb.longitude # - self.gps_lon_offset
+        # Get position
+        if fb.latitude > 1e-6 and fb.longitude > 1e-6:
+            self.lat = fb.latitude # - self.gps_lat_offset 
+            self.lon = fb.longitude # - self.gps_lon_offset
+        else:
+            rospy.logwarn("#PROBLEM# Received Zero GPS coordinates!")
+
 
         # Check offset correct set
         if not self.init:
 
             # Determine offsets
-            lat_error = (fb.latitude - self.gps_lat_offset) - self.lat_centre
-            long_Error = (fb.longitude - self.gps_lon_offset) - self.lon_centre
+            lat_error = (self.lat - self.gps_lat_offset) - self.lat_centre
+            long_Error = (self.lon - self.gps_lon_offset) - self.lon_centre
             rospy.loginfo("Offset error : {}, {}".format(lat_error,long_Error))
             rospy.loginfo("Offset lat : {}".format(self.gps_lat_offset))
             rospy.loginfo("Offset lon : {}".format(self.gps_lon_offset))
@@ -137,8 +141,8 @@ class chlorophyll_sampler_node(object):
             self.grid = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_shift=self.gps_lat_offset,lon_shift=self.gps_lon_offset)
 
             # Set origin of rotation
-            self.origin_lat = fb.latitude
-            self.origin_lon = fb.longitude
+            self.origin_lat = self.lat
+            self.origin_lon = self.lon
 
         # Rotate data       
         # origin = (self.origin_lon,self.origin_lat)
@@ -152,7 +156,14 @@ class chlorophyll_sampler_node(object):
         """ Init the sampler"""
 
         # Parameters
-        self.update_period = rospy.get_param('~sampling_time')
+        self.update_period = rospy.get_param('~sampling_time')                  # Update period
+        # update_frequency = rospy.get_param('~sampling_frequency', None)    # Update frequency (takes precedence)
+
+        #         # Sampling rate
+        # if update_frequency is None:
+        #     self.update_period = update_period
+        # else:
+        #     self.update_period = 1.0/update_frequency
 
         # Determine if data needs to be scaled
         self.scale_factor =  float(1)/float(rospy.get_param('~data_downs_scale_factor'))
@@ -231,9 +242,7 @@ class chlorophyll_sampler_node(object):
     def run_node(self):
         """ Start sampling """
 
-        # Sampling rate
         rate = rospy.Rate(float(1)/self.update_period)
-
         while not rospy.is_shutdown():
 
             self.counter +=1
@@ -263,6 +272,8 @@ class chlorophyll_sampler_node(object):
         sample_params = {}
         for key in self.sampler_params:
             sample_params[key] = rospy.get_param(key)
+        
+        #print('meas_per at simulated_chl_sampler is ', self.update_period)
 
         try :
             Utils.save_mission(out_path=out_path,grid=self.grid,meas_per=self.update_period,sample_params=sample_params,track_params=track_params)
