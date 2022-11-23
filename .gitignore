@@ -3,4 +3,5 @@
 *.m5
 *.h5
 *.png
+*.bag
 /plots
