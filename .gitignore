@@ -3,8 +3,5 @@
 *.m5
 *.h5
 *.png
-<<<<<<< HEAD
-=======
 *.bag
->>>>>>> f019731006e7b9cca70a8ee3f0dbbb31bdfda80e
 /plots
