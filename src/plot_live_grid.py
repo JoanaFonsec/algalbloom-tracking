@@ -2,9 +2,6 @@
 # -*- coding: utf-8 -*-
 # vim:fenc=utf-8
 
-
-import os
-
 import scipy.io
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
@@ -149,8 +146,11 @@ class chlorophyll_sampler_node(object):
             return
 
         # Offset position
-        self.lat = fb.latitude # - self.gps_lat_offset 
-        self.lon = fb.longitude # - self.gps_lon_offset
+        if fb.latitude > 1e-6 and fb.longitude > 1e-6:
+            self.lat = fb.latitude # - self.gps_lat_offset 
+            self.lon = fb.longitude # - self.gps_lon_offset
+        else:
+            rospy.logwarn("#PROBLEM# Received Zero GPS coordinates!")
 
         # Check offset correct set
         if not self.init:

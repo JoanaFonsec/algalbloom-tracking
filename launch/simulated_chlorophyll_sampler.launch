@@ -4,13 +4,14 @@
 	<arg name="output_data_path" default="$(find smarc_algal_bloom_tracking)/output"/>
 	<arg name="offset_gps" value="True"/>
 	<arg name="data_rotate_angle" value="0.0" />
-	<arg name="sampling_time" value="1.0" />
+	<arg name="sampling_time" value="6.0" />
+	<arg name="sampling_frequency" value="6.0"/>
 	<arg name="delta_ref" value="7.45" />
 	<arg name="robot_name" default="sam"/>
 	<arg name="gps_topic" default="/$(arg robot_name)/core/gps" />
 	<arg name="data_downs_scale_factor" value="1.0"/>
 
-	<arg name="mode" value="1" />
+	<arg name="mode" value="2" />
 
     <node name="simulated_chlorophyll_sampler" pkg="smarc_algal_bloom_tracking" type="simulated_chlorophyll_sampler.py" output="screen">
 		<param name="data_file_base_path" value="$(arg data_file_base_path)"/>
@@ -19,6 +20,7 @@
 		<param name="offset_gps" value="$(arg offset_gps)"/>
 		<param name="data_rotate_angle" value="$(arg data_rotate_angle)"  />
 		<param name="sampling_time" value="$(arg sampling_time)"  />
+		<!-- <param name="sampling_frequency" value="$(arg sampling_frequency)" /> -->
 		<param name="delta_ref" value="$(arg delta_ref)"  />
 
 		<!-- SIMULATIONS -->

@@ -30,10 +30,8 @@ from controller.controller_state import ControllerState
 # Utils
 from utils import Utils
 
-# Publisher methods
-from publishers.waypoints import publish_waypoint
-from publishers.gradient import publish_gradient
-from publishers.positions import publish_vp
+# Publishers
+from publishers_and_services import publish_gradient, publish_waypoint, publish_vp
 
 # Gradient estimation
 from estimators.gp import GPEstimator
@@ -84,11 +82,11 @@ class algalbloom_tracker_node(object):
         # Move these elsewhere (TODO)
         # Algorithm settings
         self.n_meas = self.args['n_meas']
-        self.grad_filter_len = 2 # 2
-        self.meas_filter_len = 3 # 3
+        # self.grad_filter_len = 2 # 2
+        # self.meas_filter_len = 3 # 3
 
         # Data points that can be captured (enough for 83.3 hours)
-        array_size = int(3e5)
+        array_size = int(1e5)
 
         # Trajectory
         self.trajectory = np.array([])      
@@ -188,18 +186,17 @@ class algalbloom_tracker_node(object):
         Update virtual position of the robot using dead reckoning
         """
 
-        fb.latitude = fb.latitude 
-        fb.longitude = fb.longitude
-
         # Get position
-        self.controller_state.absolute_position.lat = fb.latitude
-        self.controller_state.absolute_position.lon = fb.longitude
-        # rospy.loginfo(self.controller_state)
-
-        # Set virtual postion (initalisation of vp)
-        if not self.inited:           
-            self.controller_state.virtual_position.lat = fb.latitude
-            self.controller_state.virtual_position.lon = fb.longitude
+        if fb.latitude > 1e-6 and fb.longitude > 1e-6:
+            self.controller_state.absolute_position.lat = fb.latitude
+            self.controller_state.absolute_position.lon = fb.longitude
+            
+            # Set virtual postion (initalisation of vp)
+            if not self.inited:           
+                self.controller_state.virtual_position.lat = fb.latitude
+                self.controller_state.virtual_position.lon = fb.longitude
+        else:
+            rospy.logwarn("#PROBLEM# Received Zero GPS coordinates in Tracker!")
 
         # Calculate displacement (in m)
         dx,dy = Utils.displacement(virtual_position=self.controller_state.absolute_position,current_position=self.controller_state.virtual_position)
