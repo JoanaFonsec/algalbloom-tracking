@@ -12,7 +12,7 @@
 			
 			<!-- Topics Subscribed -->
 			<remap from="~measurement" to="algae_tracking/measurement"/>
-			<remap from="~gps" default="core/gps" />
+			<remap from="~gps" to="core/gps" />
 			<remap from="~go_to_waypoint_result" to="ctrl/goto_waypoint/result"/>
 
 			<!-- Topics Published -->

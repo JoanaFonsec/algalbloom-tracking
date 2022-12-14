@@ -16,7 +16,7 @@ from distutils.core import setup
 from catkin_pkg.python_setup import generate_distutils_setup
 
 d = generate_distutils_setup(
-    packages=['controller','estimators','publishers','services'],
+    packages=['utils'],
     package_dir={'': 'src'}
 )
 

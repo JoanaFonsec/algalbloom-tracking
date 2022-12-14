@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.5.2)
 project(smarc_algal_bloom_tracking)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -102,12 +102,7 @@ catkin_python_setup()
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES smarc_algal_bloom_tracking
-#  CATKIN_DEPENDS roscpp rospy std_msgs
-#  DEPENDS system_lib
-)
+catkin_package()
 
 ###########
 ## Build ##
@@ -159,14 +154,6 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-catkin_install_python(PROGRAMS
-  src/algalbloom_tracker.py src/simulated_chlorophyll_sampler.py src/plot_live_grid.py src/utils.py
-  src/controller/controller_parameters.py src/controller/controller_state.py src/controller/positions.py
-  src/publishers_and_services.py
-  src/estimators/gp.py
-  scripts/plot_simulated_chlorophyll.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
@@ -195,10 +182,34 @@ catkin_install_python(PROGRAMS
 #   # myfile2
 #   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 # )
+
+catkin_install_python(PROGRAMS
+  # src/algalbloom_tracker.py src/simulated_chlorophyll_sampler.py src/plot_live_grid.py src/utils.py
+  # src/controller/controller_parameters.py src/controller/controller_state.py src/controller/positions.py
+  # src/publishers_and_services.py
+  # src/estimators/gp.py
+  # scripts/plot_simulated_chlorophyll.py
+  nodes/sam_gp4aes_controller.py nodes/substance_sampler.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 install(DIRECTORY launch/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
   PATTERN ".svn" EXCLUDE
 )
+
+install(DIRECTORY config/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+  PATTERN ".svn" EXCLUDE
+)
+
+# install(DIRECTORY nodes/
+#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/nodes
+#   PATTERN ".svn" EXCLUDE
+# )
+
+
+
 
 #############
 ## Testing ##

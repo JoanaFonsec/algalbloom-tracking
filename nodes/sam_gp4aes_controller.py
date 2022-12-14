@@ -1,40 +1,38 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 import numpy as np
-
 import rospy
 
 # Smarc imports
 from std_msgs.msg import Bool
-from geographic_msgs.msg import GeoPoint, GeoPointStamped
+from geographic_msgs.msg import GeoPointStamped
 from sensor_msgs.msg import NavSatFix
 from smarc_msgs.msg import GotoWaypoint, GotoWaypointActionResult, ChlorophyllSample, AlgaeFrontGradient
+from smarc_msgs.srv import LatLonToUTM
 
-from controller.positions import RelativePosition
-from controller.controller_parameters import ControllerParameters
-from controller.controller_state import ControllerState
+# GP4AES imports
+import gp4aes.estimator.GPR as gpr
+import gp4aes.controller.front_tracking as controller
 
+# Publishers
+from utils.publishers import publish_gradient, publish_waypoint, publish_vp
 
-class ChlorophyllController(object):
+class FrontTracking(object):
 
     def __init__(self):
-        self.args = {}
-        self.args['initial_heading'] = rospy.get_param('~initial_heading')                         # initial heading [degrees]
-        self.args['delta_ref'] = rospy.get_param('~delta_ref')                                     # target chlorophyll value
-        self.args['following_gain'] = rospy.get_param('~following_gain')                           # following gain
-        self.args['seeking_gain'] = rospy.get_param('~seeking_gain')                               # seeking gain
-        self.args['wp_distance'] = rospy.get_param('~wp_distance')                                 # wp_distance [m]
-        self.args['estimation_trigger_val'] = rospy.get_param('~estimation_trigger_val')           # number of samples before estimation
-        self.args['speed'] = rospy.get_param('~speed')                                             # waypoint following speed [m/s]
-        self.args['travel_rpm'] = rospy.get_param('~travel_rpm')                                   # waypoint target rotation speed
-        self.args['waypoint_tolerance'] = rospy.get_param('~waypoint_tolerance')                   # waypoint tolerance [m]
-        self.args['range'] = rospy.get_param('~range')                                             # estimation circle radius [m]
-        self.args['gradient_decay'] = rospy.get_param('~gradient_decay')
-        self.args['n_meas'] = rospy.get_param('~n_meas')
+        self.initial_heading = rospy.get_param('~initial_heading')                         # initial heading [degrees]
+        self.delta_ref = rospy.get_param('~delta_ref')                                     # target chlorophyll value
+        self.wp_distance = rospy.get_param('~wp_distance')                                 # wp_distance [m]
+        self.estimation_trigger_val = rospy.get_param('~estimation_trigger_val')           # number of samples before estimation
+        self.speed = rospy.get_param('~speed')                                             # waypoint following speed [m/s]
+        self.travel_rpm = rospy.get_param('~travel_rpm')                                   # waypoint target rotation speed
+        self.waypoint_tolerance = rospy.get_param('~waypoint_tolerance')                   # waypoint tolerance [m]
+        self.range = rospy.get_param('~range')                                             # estimation circle radius [m]
+        self.kernel_params = rospy.get_param('~kernel_params')                             # kernel parameters obtained through training
+        self.kernel = rospy.get_param('~kernel')                                           # name of the kernel to use: RQ or MAT
+        self.std = rospy.get_param('~std')                                                 # measurement noise
 
         # Vehicle Controller
         self.ctl_rate = rospy.Rate(50)
-        self.controller_state = ControllerState()
-        self.controller_params = ControllerParameters()
 
         self.set_subscribers_publishers()
         self.set_services()
@@ -45,28 +43,24 @@ class ChlorophyllController(object):
     ###############################################
     #           Callbacks Region                  #
     ###############################################
-    def lat_lon__cb(self, fb):
+    def position__cb(self, fb):  
         """        
         Latlon topic subscriber callback:
         Update virtual position of the robot using dead reckoning
         """
+        self.position = np.array([[fb.longitude, fb.latitude]])
 
-        # Get position and update it using fb.latitude and fb.longitude
-        # Save the variables you need for the position with those.          
-
-    def waypoint_reached__cb(self, fb):
+    def waypoint_reached__cb(self, fb): 
         """
         Waypoint reached
         Logic checking for proximity threshold is handled by the line following action
         """
-
-        # Determine if waypoint has been reached
         if fb.status.text == "WP Reached":
-            # Update an internal variable that says that you achieved the current waypoint?
+            self.waypoint_reached = True
             pass
         pass
 
-    def chlorophyl__cb(self, fb):
+    def measurement__cb(self, fb): 
         """
         Callback when a sensor reading is received
 
@@ -76,16 +70,14 @@ class ChlorophyllController(object):
 
         # TODO : Make the measurement a service so that controller can set measurement period
 
-        # Increment sample index
-
         # read values (the sensor is responsible for providing the Geo stamp i.e. lat lon co-ordinates)
-        position = np.array([[fb.lon, fb.lat]])
+        self.position_measurement = np.array([[fb.lon, fb.lat]])
         sample = fb.sample
 
-        # Save the chlorophyll value to an internal variableif np.isnan(self.measurement):
+        # Save the measurement if not Nan
         if np.isnan(sample):
             print("Warning: NaN value measured.")
-            self.measurement = self.measurements[-1]  # Avoid plots problems
+            self.measurement = self.measurement[-1]  # Avoid plots problems
         else:
             self.measurement = sample
         pass
@@ -99,10 +91,9 @@ class ChlorophyllController(object):
         Helper function to create all publishers and subscribers.
         """
         # Subscribers
-        self.state_sub = rospy.Subscriber('~measurements', ChlorophyllSample, self.measurement__cb)
-        self.gps_position_sub = rospy.Subscriber('~gps', NavSatFix, self.lat_lon__cb)
-        self.goal_reached_sub = rospy.Subscriber('~go_to_waypoint_result', GotoWaypointActionResult,
-                                                 self.waypoint_reached__cb, queue_size=2)
+        rospy.Subscriber('~measurement', ChlorophyllSample, self.measurement__cb)
+        rospy.Subscriber('~gps', NavSatFix, self.position__cb)
+        rospy.Subscriber('~go_to_waypoint_result', GotoWaypointActionResult, self.waypoint_reached__cb, queue_size=2)
 
         # Publishers
         self.enable_waypoint_pub = rospy.Publisher("~enable_live_waypoint", Bool, queue_size=1)
@@ -114,19 +105,53 @@ class ChlorophyllController(object):
         """
         Helper function to create all services.
         """
-        rospy.wait_for_service("~lat_lon_utm_srv", timeout=1)
 
+        service = '/sam/dr/lat_lon_to_utm'
+        try:
+            rospy.wait_for_service(service, timeout=1)
+        except:
+            rospy.logwarn(str(service)+" service not found!")
+
+        self.latlontoutm_service = rospy.ServiceProxy(service,LatLonToUTM)
+
+    ############################################################################################################
     def run(self):
 
+        ############ Tunable parameters
+        # Dynamics
+        alpha_seek = 50
+        alpha_follow = 1
+        dynamics = controller.Dynamics(alpha_seek, alpha_follow, self.delta_ref, self.wp_distance)
+
+        # Trajectory parameters
+        init_towards = np.array([[21, 61.492]])
+        init_coords = np.array([[20.925, 61.492]])
+
+        # Algorithm settings (commented values are of trajectory for IROS paper)
+        n_meas = 200 # 125
+        meas_filter_len = 3 # 3
+        alpha = 0.97 # Gradient update factor, 0.95
+        weights_meas = [0.2, 0.3, 0.5]
+        init_flag = True
+
+        ############ Initialize functions
+        # Gaussian Process Regression
+        est = gpr.GPEstimator(self.kernel, self.std, self.range, self.kernel_params)
+        init_heading = np.array([[init_towards[0, 0] - init_coords[0, 0], init_towards[0, 1] - init_coords[0, 1]]])
+
+        # Main variables: position, measurements, gradient, filtered_measurements, filtered_gradient
+        gradient = np.empty((0,2))
+        filtered_measurements = np.empty((0, 2))
+        filtered_gradient = np.empty((0, 2))
+
+
         while not rospy.is_shutdown():
-            ##### Take measurement
-            # self.measurement  exists! 
 
             ##### Init state - From beginning until 5% tolerance from front
-            if (i < n_meas or measurements[-1] < 0.95*dynamics.delta_ref) and init_flag is True:
+            if (len(filtered_measurements) < n_meas or self.measurement[-1] < 0.95*dynamics.delta_ref) and init_flag is True:
                 gradient = np.append(gradient, init_heading[[0], :2] / np.linalg.norm(init_heading[0, :2]), axis=0)
                 filtered_gradient = np.append(filtered_gradient, gradient[[-1],:], axis=0)
-                filtered_measurements = np.append(filtered_measurements,measurements[-1])
+                filtered_measurements = np.append(filtered_measurements,self.measurement[-1])
 
             ##### Estimation state - From reaching the front till the end of the mission
             else:
@@ -134,31 +159,35 @@ class ChlorophyllController(object):
                     print("Following the front...")
                     init_flag = False
 
-                filtered_measurements = np.append(filtered_measurements, 
-                                            np.average(measurements[- meas_filter_len:], weights=weights_meas))
+                filtered_measurements = np.append(filtered_measurements, np.average(self.measurement[- meas_filter_len:], weights=weights_meas))
 
                 # Estimate and filter gradient
-                gradient_calculation = np.array(est.est_grad(position[-n_meas:],filtered_measurements[-n_meas:])).squeeze().reshape(-1, 2)
+                gradient_calculation = np.array(est.est_grad(self.position_measurement[-n_meas:],filtered_measurements[-n_meas:])).squeeze().reshape(-1, 2)
                 gradient = np.append(gradient, gradient_calculation / np.linalg.norm(gradient_calculation), axis=0)
                 filtered_gradient = np.append(filtered_gradient, filtered_gradient[[-2], :]*alpha + gradient[[-1], :]*(1-alpha), axis=0)
 
-            ##### Calculate next position
-            control = dynamics(filtered_measurements[-1], filtered_gradient[-1,:], include_time=False)
-            next_position = controller.next_position(position[-1, :],control)
-            position = np.append(position, next_position, axis=0)
+            ##### Calculate next waypoint
+            rospy.loginfo("Determining new waypoint")
+            if self.waypoint_reached:
+                control = dynamics(filtered_measurements[-1], filtered_gradient[-1,:], include_time=False)
+                next_waypoint = controller.next_position(self.position[-1, :],control)
+                self.waypoint_reached = False
+                publish_waypoint(self.latlontoutm_service,next_waypoint,self.waypoint_pub,self.enable_waypoint_pub,self.travel_rpm,self.speed,self.waypoint_tolerance)
 
-            if (lon[0] <= position[-1, 0] <= lon[-1]) and (lat[0] <= position[-1, 1] <= lat[-1]):
-                print("Warning: trajectory got out of boundary limits.")
-                break
-            if next_position[0, 1] > 61.64:
+
+            # if (self.lon[0] <= self.position[-1, 0] <= self.lon[-1]) and (self.lat[0] <= self.position[-1, 1] <= self.lat[-1]):
+            #     print("Warning: trajectory got out of boundary limits.")
+            #     break
+            if next_waypoint[0, 1] > 61.64:
                 break
 
             self.ctl_rate.sleep()
 
 
 if __name__ == '__main__':
-    rospy.init_node('chlorophyll_controller')
+    rospy.init_node('Front_Tracking')
     try:
-        controller = ChlorophyllController()
+        tracker = FrontTracking()
+        rospy.spin()
     except rospy.ROSInterruptException:
         pass

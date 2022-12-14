@@ -1,5 +1,3 @@
-following_gain: 1.0
-seeking_gain: 1.0
 wp_distance: 15.0
 threshold: 0.1
 estimation_trigger_val: 45.0
@@ -7,9 +5,12 @@ speed: 1.0
 travel_rpm: 1180
 waypoint_tolerance: 10
 range: 20
-gradient_decay: 0.3
-n_meas: 150
 
 # plan parameters
 initial_heading: 0.0
 delta_ref: 7.45
+
+# GP kernel
+kernel: 'MAT'
+kernel_params: [44.29588721, 0.54654887, 0.26656638]
+std: 0.001
