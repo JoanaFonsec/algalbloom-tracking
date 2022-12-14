@@ -260,8 +260,8 @@ class chlorophyll_sampler_node(object):
 
         # Get all relevant ros params
         self.all_params = rospy.get_param_names()
-        self.tracking_params = [a for a in self.all_params if "algalbloom_tracker" in a]
-        self.sampler_params = [a for a in self.all_params if "simulated_chlorophyll_sampler" in a]
+        self.tracking_params = [a for a in self.all_params if "sam_gp4aes_controller" in a]
+        self.sampler_params = [a for a in self.all_params if "substance_sampler" in a]
 
         # track_params
         track_params= {}
@@ -286,7 +286,7 @@ class chlorophyll_sampler_node(object):
 
 if __name__ == '__main__':
 
-    rospy.init_node("simulated_chlorophyll_sampler")
+    rospy.init_node("substance_sampler")
     sampler = chlorophyll_sampler_node()
 
     # Attach exit handler

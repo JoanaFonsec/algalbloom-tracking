@@ -184,12 +184,14 @@ include_directories(
 # )
 
 catkin_install_python(PROGRAMS
-  # src/algalbloom_tracker.py src/simulated_chlorophyll_sampler.py src/plot_live_grid.py src/utils.py
+  # src/algalbloom_tracker.py src/simulated_chlorophyll_sampler.py 
+#nodes/plot_live_grid.py 
+  #src/utils.py
   # src/controller/controller_parameters.py src/controller/controller_state.py src/controller/positions.py
   # src/publishers_and_services.py
   # src/estimators/gp.py
-  # scripts/plot_simulated_chlorophyll.py
-  nodes/sam_gp4aes_controller.py nodes/substance_sampler.py
+  #scripts/plot_simulated_chlorophyll.py
+  nodes/sam_gp4aes_controller.py nodes/substance_sampler.py nodes/plot_live_grid.py src/utils/utils.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -203,10 +205,10 @@ install(DIRECTORY config/
   PATTERN ".svn" EXCLUDE
 )
 
-# install(DIRECTORY nodes/
-#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/nodes
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY nodes/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/nodes
+  PATTERN ".svn" EXCLUDE
+)
 
 
 

@@ -103,7 +103,7 @@ def read_mat_data(timestamp,include_time=False,scale_factor=1,lat_shift=0,lon_sh
 
     return GeoGrid(chl, lon, lat, time, t_idx, include_time=include_time)
 
-class chlorophyll_sampler_node(object):
+class substance_sampler_node(object):
 
     def lat_lon__cb(self,fb):
 
@@ -252,8 +252,8 @@ class chlorophyll_sampler_node(object):
 
         # Get all relevant ros params
         self.all_params = rospy.get_param_names()
-        self.tracking_params = [a for a in self.all_params if "algalbloom_tracker" in a]
-        self.sampler_params = [a for a in self.all_params if "simulated_chlorophyll_sampler" in a]
+        self.tracking_params = [a for a in self.all_params if "sam_gp4aes_controller" in a]
+        self.sampler_params = [a for a in self.all_params if "substance_sampler" in a]
 
         # track_params
         track_params= {}
@@ -278,8 +278,8 @@ class chlorophyll_sampler_node(object):
 
 if __name__ == '__main__':
 
-    rospy.init_node("simulated_chlorophyll_sampler")
-    sampler = chlorophyll_sampler_node()
+    rospy.init_node("substance_sampler")
+    sampler = substance_sampler_node()
 
     # Attach exit handler
     signal.signal(signal.SIGINT, sampler.close_node)

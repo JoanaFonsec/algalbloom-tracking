@@ -13,7 +13,7 @@
 
 	<arg name="mode" value="2" />
 
-    <node name="simulated_substance_sampler" pkg="smarc_algal_bloom_tracking" type="simulated_substance_sampler.py" output="screen">
+    <node name="substance_sampler" pkg="smarc_algal_bloom_tracking" type="substance_sampler.py" output="screen">
 		<param name="data_file_base_path" value="$(arg data_file_base_path)"/>
 		<param name="output_data_path" value="$(arg output_data_path)"/>
 		<!-- <param name="data_downs_scale_factor" value="$(arg data_downs_scale_factor)"/> -->
@@ -73,7 +73,7 @@
 
     </node>
 
-	<node name="plot_live_grid" pkg="smarc_algal_bloom_tracker" type="plot_live_grid.py" output="screen">
+	<node name="plot_live_grid_node" pkg="smarc_algal_bloom_tracking" type="plot_live_grid.py" output="screen">
 		<param name="data_file_base_path" value="$(arg data_file_base_path)"/>
 		<param name="output_data_path" value="$(arg output_data_path)"/>
 		<param name="data_downs_scale_factor" value="1.0" if="$(eval arg('mode') == 1)"/>

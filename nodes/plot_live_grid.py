@@ -16,7 +16,7 @@ from smarc_msgs.msg import ChlorophyllSample,GotoWaypoint,AlgaeFrontGradient
 from sensor_msgs.msg import NavSatFix
 
 # Saving data
-from utils import Utils
+from utils.utils import Utils
 
 # Graphing
 import matplotlib.pyplot as plt
