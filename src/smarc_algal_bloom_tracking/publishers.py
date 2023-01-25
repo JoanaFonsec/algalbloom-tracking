@@ -51,8 +51,8 @@ def publish_waypoint(latlontoutm_service,next_waypoint,waypoint_pub,enable_waypo
 
     # Convert lat,lon to UTM
     gp = GeoPoint()
-    gp.latitude = next_waypoint[0]
-    gp.longitude = next_waypoint[1]
+    gp.latitude = next_waypoint[0, 1]
+    gp.longitude = next_waypoint[0, 0]
     gp.altitude = -1
     utm_res = latlontoutm_service(gp)
 
@@ -67,14 +67,14 @@ def publish_waypoint(latlontoutm_service,next_waypoint,waypoint_pub,enable_waypo
     msg = GotoWaypoint()
     msg.travel_depth = -1
     msg.goal_tolerance = waypoint_tolerance
-    msg.lat = next_waypoint[0]
-    msg.lon = next_waypoint[1]
+    msg.lat = next_waypoint[0, 1]
+    msg.lon = next_waypoint[0, 0]
     msg.z_control_mode = z_control_modes[0]
     msg.travel_rpm = travel_rpm
     msg.speed_control_mode = speed_control_mode[0]
     msg.travel_speed = speed
     msg.pose.header.frame_id = 'utm'
-    msg.pose.header.stamp = rospy.Time(0)
+    msg.pose.header.stamp = rospy.Time.now()
     msg.pose.pose.position.x = x
     msg.pose.pose.position.y = y
 
@@ -85,4 +85,4 @@ def publish_waypoint(latlontoutm_service,next_waypoint,waypoint_pub,enable_waypo
 
     # Publish waypoint
     waypoint_pub.publish(msg)
-    rospy.loginfo('Published waypoint : {},{}'.format(next_waypoint[0],next_waypoint[1]))
+    rospy.loginfo('Published waypoint : {},{}'.format(next_waypoint[0, 1],next_waypoint[0, 0]))

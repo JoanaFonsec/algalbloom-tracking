@@ -191,7 +191,7 @@ catkin_install_python(PROGRAMS
   # src/publishers_and_services.py
   # src/estimators/gp.py
   #scripts/plot_simulated_chlorophyll.py
-  nodes/sam_gp4aes_controller.py nodes/substance_sampler.py nodes/plot_live_grid.py src/utils/utils.py
+  nodes/sam_gp4aes_controller.py nodes/substance_sampler.py nodes/plot_live_grid.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

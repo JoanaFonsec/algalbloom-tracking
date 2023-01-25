@@ -16,7 +16,7 @@ from smarc_msgs.msg import ChlorophyllSample,GotoWaypoint,AlgaeFrontGradient
 from sensor_msgs.msg import NavSatFix
 
 # Saving data
-from utils.utils import Utils
+# from utils.utils import Utils
 
 # Graphing
 import matplotlib.pyplot as plt
@@ -127,16 +127,19 @@ class chlorophyll_sampler_node(object):
     def waypoint__cb(self,fb):
 
         # Rotate waypoint waypoint
-        origin = (self.origin_lon,self.origin_lat)
-        point = (fb.lon, fb.lat)
-        angle = math.radians(self.data_rotate_angle)
-        lon, lat = rotate(origin, point, -angle)
+        # origin = (self.origin_lon,self.origin_lat)
+        # point = (fb.lon, fb.lat)
+        # angle = math.radians(self.data_rotate_angle)
+        # lon, lat = rotate(origin, point, -angle)
         
         # Extract new waypoint
-        self.wp_lat = lat 
-        self.wp_lon = lon 
-
-        rospy.loginfo("New waypoint received! : {} , {} ".format(self.wp_lat,self.wp_lon))
+        if self.gps_lat_offset is not None and self.gps_lat_offset is not None:
+            rospy.loginfo("New waypoint received! : {} , {} ".format(fb.lat, fb.lon))
+            self.wp_lat = fb.lat - self.gps_lat_offset
+            self.wp_lon = fb.lon - self.gps_lon_offset
+            rospy.loginfo("Offset waypoint: {} , {} ".format(self.wp_lat,self.wp_lon))
+        else:
+            rospy.logwarn("No GPS Offset received in Plot Live Grid")
 
     def lat_lon__cb(self,fb):
         
@@ -147,26 +150,10 @@ class chlorophyll_sampler_node(object):
 
         # Offset position
         if fb.latitude > 1e-6 and fb.longitude > 1e-6:
-            self.lat = fb.latitude # - self.gps_lat_offset 
-            self.lon = fb.longitude # - self.gps_lon_offset
+            self.lat = fb.latitude - self.gps_lat_offset 
+            self.lon = fb.longitude - self.gps_lon_offset
         else:
             rospy.logwarn("#PROBLEM# Received Zero GPS coordinates!")
-
-        # Check offset correct set
-        if not self.init:
-
-            # Offset the data
-            self.grid = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_shift=self.gps_lat_offset,lon_shift=self.gps_lon_offset)
-
-            # Set origin of rotation
-            self.origin_lat = fb.latitude
-            self.origin_lon = fb.longitude
-
-        # Rotate data (work in progress)  
-        # origin = (self.origin_lon,self.origin_lat)
-        # point = (self.lon, self.lat)
-        # angle = math.radians(self.data_rotate_angle)
-        # self.lon, self.lat = rotate(origin, point, -angle)
 
         self.init = True
 
@@ -229,7 +216,7 @@ class chlorophyll_sampler_node(object):
 
     def is_valid_position(self):
         """ Determine if current position is valid"""
-        current_position = [self.lon,self.lat]
+        current_position = [self.lon,self.lat] 
         return None not in current_position
 
     def is_valid_waypoint(self):
@@ -276,7 +263,7 @@ class chlorophyll_sampler_node(object):
             
             # Plot position
             if self.grid_plotted and self.is_valid_position():
-                ax.plot(self.lon,self.lat,'r.', linewidth=1)                
+                ax.plot(self.lon, self.lat,'r.', linewidth=1)                
                 # plt.pause(0.0001)
 
             # Plot waypoint

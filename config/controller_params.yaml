@@ -1,9 +1,9 @@
-wp_distance: 15.0
+wp_distance: 30.0
 threshold: 0.1
-estimation_trigger_val: 45.0
+n_measurements: 200
 speed: 1.0
 travel_rpm: 1180
-waypoint_tolerance: 10
+waypoint_tolerance: 15
 range: 20
 
 # plan parameters
@@ -14,3 +14,7 @@ delta_ref: 7.45
 kernel: 'MAT'
 kernel_params: [44.29588721, 0.54654887, 0.26656638]
 std: 0.001
+
+# Controller parameters
+alpha_seek: 50
+alpha_follow: 1

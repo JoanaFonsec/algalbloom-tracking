@@ -1,6 +1,6 @@
 <launch>
 	<!-- Data parameters -->
-	<arg name="data_file_base_path" default="$(find smarc_algal_bloom_tracking)/data"/>
+	<arg name="data_file_base_path" default="/home/jfgf/catkin_ws/src/smarc_algal_bloom_tracking/data"/>
 	<arg name="output_data_path" default="$(find smarc_algal_bloom_tracking)/output"/>
 	<arg name="offset_gps" value="True"/>
 	<arg name="data_rotate_angle" value="0.0" />
@@ -11,7 +11,7 @@
 	<arg name="gps_topic" default="/$(arg robot_name)/core/gps" />
 	<arg name="data_downs_scale_factor" value="1.0"/>
 
-	<arg name="mode" value="2" />
+	<arg name="mode" value="1" />
 
     <node name="substance_sampler" pkg="smarc_algal_bloom_tracking" type="substance_sampler.py" output="screen">
 		<param name="data_file_base_path" value="$(arg data_file_base_path)"/>
