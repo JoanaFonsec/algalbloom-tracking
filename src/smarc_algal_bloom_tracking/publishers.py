@@ -85,4 +85,4 @@ def publish_waypoint(latlontoutm_service,next_waypoint,waypoint_pub,enable_waypo
 
     # Publish waypoint
     waypoint_pub.publish(msg)
-    rospy.loginfo('Published waypoint : {},{}'.format(next_waypoint[0, 1],next_waypoint[0, 0]))
+    # rospy.loginfo('Published waypoint : {},{}'.format(next_waypoint[0, 1],next_waypoint[0, 0]))

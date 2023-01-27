@@ -56,7 +56,7 @@ class substance_sampler_node(object):
         # WGS84 grid (lookup-table for sampling)
         self.include_time = False
         self.timestamp = 1618610399
-        self.grid = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor)
+        self.grid, self.t_idx = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor)
         # self.grid = None
 
         # Check if data should be offset
@@ -110,7 +110,7 @@ class substance_sampler_node(object):
         #     rospy.loginfo("Offset lon : {}".format(self.gps_lon_offset))
 
         #     # Offset the data
-        #     self.grid = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_shift=self.gps_lat_offset,lon_shift=self.gps_lon_offset)
+        #     self.grid, self.t_idx = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_shift=self.gps_lat_offset,lon_shift=self.gps_lon_offset)
 
         #     # Set origin of rotation
         #     self.origin_lat = self.lat
@@ -193,7 +193,7 @@ class substance_sampler_node(object):
         #print('meas_per at simulated_chl_sampler is ', self.update_period)
 
         try :
-            save_mission(out_path=out_path,grid=self.grid,meas_per=self.update_period,sample_params=sample_params,track_params=track_params)
+            save_mission(out_path=out_path,grid=self.grid,meas_per=self.update_period,sample_params=sample_params,track_params=track_params, t_idx=self.t_idx)
             rospy.logwarn("Data saved!")
         except Exception as e:
             rospy.logwarn(e)
@@ -210,4 +210,5 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, sampler.close_node)
 
     sampler.run_node()
+    rospy.signal_shutdown()
         

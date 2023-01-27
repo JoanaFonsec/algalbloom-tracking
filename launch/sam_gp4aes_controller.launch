@@ -1,6 +1,6 @@
 <launch>
 	<!-- Data parameters -->
-	<arg name="output_data_path" default="$(find smarc_algal_bloom_tracking)/output"/>
+	<arg name="output_data_path" default="/home/jfgf/catkin_ws/src/smarc_algal_bloom_tracking/output"/>
 	<arg name="robot_name" default="sam"/>
 	
 

@@ -134,10 +134,10 @@ class chlorophyll_sampler_node(object):
         
         # Extract new waypoint
         if self.gps_lat_offset is not None and self.gps_lat_offset is not None:
-            rospy.loginfo("New waypoint received! : {} , {} ".format(fb.lat, fb.lon))
+            # rospy.loginfo("New waypoint received! : {} , {} ".format(fb.lat, fb.lon))
             self.wp_lat = fb.lat - self.gps_lat_offset
             self.wp_lon = fb.lon - self.gps_lon_offset
-            rospy.loginfo("Offset waypoint: {} , {} ".format(self.wp_lat,self.wp_lon))
+            rospy.loginfo("Waypoint: {} , {} ".format(self.wp_lat,self.wp_lon))
         else:
             rospy.logwarn("No GPS Offset received in Plot Live Grid")
 
