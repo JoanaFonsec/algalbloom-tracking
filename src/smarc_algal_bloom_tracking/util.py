@@ -165,4 +165,54 @@ def read_mat_data(timestamp,include_time=False,scale_factor=1,lat_shift=0,lon_sh
         field = RegularGridInterpolator((lon, lat, time), chl)
 
     return field, t_idx
+
+
+# Read matlab data
+def read_mat_data_offset(timestamp,include_time=False,scale_factor=1,lat_start=0,lon_start = 0, base_path=None):
+
+    # Get datapath
+    if base_path is None:
+        base_path = rospy.get_param('~data_file_base_path')
+
+    # Read mat files
+    chl = scipy.io.loadmat(base_path+'/chl.mat')['chl']
+    lat = scipy.io.loadmat(base_path+'/lat.mat')['lat']
+    lon = scipy.io.loadmat(base_path+'/lon.mat')['lon']
+    time = scipy.io.loadmat(base_path+'/time.mat')['time']
+
+    # Reshape
+    lat = np.reshape(lat,[-1,])
+    lon = np.reshape(lon,[-1,])
+    chl = np.swapaxes(chl,0,2)
+    time = np.reshape(time,[-1,])    
+
+    # Scale data        
+    lat = ((lat - lat[0])*scale_factor)+lat[0]
+    lon = ((lon - lon[0])*scale_factor)+lon[0]
+
+    # Shift the data
+    lat_offset = lat_start - lat[0]
+    lon_offset = lon_start - lon[0]
+    lat = lat + lat_offset
+    lon = lon + lon_offset
+
+    # Logging
+    rospy.loginfo('Scale factor : {}'.format(scale_factor))
+    rospy.loginfo("Dimensions of lat {} - {}".format(lat[0],lat[-1]))
+    rospy.loginfo("Dimensions of lon {} - {}".format(lon[0],lon[-1]))
+
+    # Print
+    if True:
+        print('Scale factor : {}'.format(scale_factor))
+        print("Dimensions of lat {} - {}".format(lat[0],lat[-1]))
+        print("Dimensions of lon {} - {}".format(lon[0],lon[-1]))
+
+    t_idx = np.argmin(np.abs(timestamp - time))
+
+    if include_time is False:
+        field = RegularGridInterpolator((lon, lat), chl[:,:,t_idx])
+    else:
+        field = RegularGridInterpolator((lon, lat, time), chl)
+
+    return field, t_idx
             
