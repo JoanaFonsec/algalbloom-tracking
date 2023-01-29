@@ -66,7 +66,7 @@ class substance_sampler_node(object):
         self.sam_starting_lon = rospy.get_param('~sam_starting_lon')
         self.map_starting_lat = rospy.get_param('~map_starting_lat')
         self.map_starting_lon = rospy.get_param('~map_starting_lon')
-        self.grid, t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
+        self.grid, self.t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
         
         # Publishers and subscribers
         self.dr_sub = rospy.Subscriber('~gps_topic', NavSatFix, self.lat_lon__cb,queue_size=2)
@@ -165,6 +165,9 @@ class substance_sampler_node(object):
         # sample_params
         sample_params = {}
         for key in self.sampler_params:
+            print("key: ", key)
+            sample_params[key] = None
+            print("Param: ", rospy.get_param(key))
             sample_params[key] = rospy.get_param(key)
         
         #print('meas_per at simulated_chl_sampler is ', self.update_period)

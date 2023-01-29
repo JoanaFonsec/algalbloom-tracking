@@ -59,7 +59,7 @@ def nonabs_1D_dist(x, X):
     return res
 
 
-def save_raw_mission_data(out_path,measurements,grads,delta_ref,traj,measurement_pos):
+def save_raw_mission_data(out_path,measurements,grads,delta_ref,traj):
     """
     Write raw mission data to out_path\raw.m5 when algal bloom tracking node is closed
     """
@@ -67,7 +67,6 @@ def save_raw_mission_data(out_path,measurements,grads,delta_ref,traj,measurement
     with h5.File(out_path+"/raw.h5", 'w') as f:
         f.create_dataset("traj", data=traj)
         f.create_dataset("measurement_vals", data=measurements)
-        # f.create_dataset("measurement_pos", data=measurement_pos)
         f.create_dataset("grad_vals", data=grads)
         f.attrs.create("delta_ref", data=delta_ref)
         
@@ -90,8 +89,6 @@ def save_mission(out_path,grid,meas_per,sample_params,track_params, t_idx):
     with h5.File(out_path+"/raw.h5", 'r') as f:
         traj = f["traj"][()]
         measurement_vals = f["measurement_vals"][()]
-        # measurement_pos = f["measurement_pos"][()]
-
         grad_vals = f["grad_vals"][()]
         delta_ref = f.attrs["delta_ref"]
 
@@ -103,7 +100,6 @@ def save_mission(out_path,grid,meas_per,sample_params,track_params, t_idx):
         if len(grid.grid) == 3:
             f.create_dataset("time", data=grid.grid[2])
         f.create_dataset("measurement_vals", data=measurement_vals)
-        # f.create_dataset("measurement_pos", data=measurement_pos)
         f.create_dataset("grad_vals", data=grad_vals)
         f.attrs.create("t_idx", data=t_idx)
         f.attrs.create("delta_ref", data=delta_ref)

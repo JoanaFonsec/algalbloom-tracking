@@ -133,13 +133,10 @@ class chlorophyll_sampler_node(object):
     def waypoint__cb(self,fb):
 
         # Extract new waypoint
-        if self.gps_lat_offset is not None and self.gps_lat_offset is not None:
-            # rospy.loginfo("New waypoint received! : {} , {} ".format(fb.lat, fb.lon))
-            self.wp_lat = fb.lat - self.gps_lat_offset
-            self.wp_lon = fb.lon - self.gps_lon_offset
-            rospy.loginfo("Waypoint: {} , {} ".format(self.wp_lat,self.wp_lon))
-        else:
-            rospy.logwarn("No GPS Offset received in Plot Live Grid")
+        self.wp_lat = fb.lat - self.gps_lat_offset
+        self.wp_lon = fb.lon - self.gps_lon_offset
+        # rospy.loginfo("Waypoint: {} , {} ".format(self.wp_lat,self.wp_lon))
+
 
     def lat_lon__cb(self,fb):
         
@@ -204,11 +201,9 @@ class chlorophyll_sampler_node(object):
         self.map_starting_lat = None
         self.map_starting_lon = None
 
-        self.gps_topic = rospy.get_param('~gps_topic', '/sam/core/gps')
-
         # Publishers and subscribers
         # self.dr_sub = rospy.Subscriber('/sam/dr/lat_lon', GeoPoint, self.lat_lon__cb, queue_size=2)
-        self.dr_sub = rospy.Subscriber(self.gps_topic, NavSatFix, self.lat_lon__cb, queue_size=2)
+        self.dr_sub = rospy.Subscriber('~gps_topic', NavSatFix, self.lat_lon__cb, queue_size=2)
         self.waypoint_sub = rospy.Subscriber(WAPOINT_TOPIC, GotoWaypoint, self.waypoint__cb, queue_size=2)
         self.gradient_sub = rospy.Subscriber(GRADIENT_TOPIC, AlgaeFrontGradient, self.gradient__cb, queue_size=2)
         self.vp_sub = rospy.Subscriber(VITUAL_POSITION_TOPIC, GeoPointStamped, self.vp__cb, queue_size=2)
@@ -274,11 +269,11 @@ class chlorophyll_sampler_node(object):
                 self.grid_plotted = True
 
             # Plot gradient
-            if self.grid_plotted and self.is_valid_gradient() and self.counter % 10 == 0:
-                ax.arrow(x=self.grad_lon, y=self.grad_lat, dx=0.00005*self.grad_x, dy=0.00005*self.grad_y, width=.00002) 
-                # plt.pause(0.0001)
-            else:
-                rospy.logwarn("Gradient is not valid...")
+            # if self.grid_plotted and self.is_valid_gradient() and self.counter % 10 == 0:
+            #     ax.arrow(x=self.grad_lon, y=self.grad_lat, dx=0.00005*self.grad_x, dy=0.00005*self.grad_y, width=.00002) 
+            #     # plt.pause(0.0001)
+            # else:
+            #     rospy.logwarn("Gradient is not valid...")
             
             # Plot position
             if self.grid_plotted and self.is_valid_position():
