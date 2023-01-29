@@ -114,8 +114,8 @@ class chlorophyll_sampler_node(object):
         self.gps_lon_offset = fb.position.longitude
 
     def map_offset__cb(self, fb):
-        return
-
+        self.map_starting_lat = fb.position.latitude
+        self.map_starting_lon = fb.position.longitude
 
     def vp__cb(self,fb):
 
@@ -212,7 +212,8 @@ class chlorophyll_sampler_node(object):
         self.waypoint_sub = rospy.Subscriber(WAPOINT_TOPIC, GotoWaypoint, self.waypoint__cb, queue_size=2)
         self.gradient_sub = rospy.Subscriber(GRADIENT_TOPIC, AlgaeFrontGradient, self.gradient__cb, queue_size=2)
         self.vp_sub = rospy.Subscriber(VITUAL_POSITION_TOPIC, GeoPointStamped, self.vp__cb, queue_size=2)
-        self.lat_lon_offset_sub = rospy.Subscriber('/sam/algae_tracking/lat_lon_offset', GeoPointStamped, self.offset__cb,queue_size=2)
+        self.lat_lon_offset_sub = rospy.Subscriber('/sam/algae_tracking/lat_lon_offset', GeoPointStamped, self.gps_offset__cb,queue_size=2)
+        self.lat_lon_offset_sub = rospy.Subscriber('/sam/algae_tracking/map_offset', GeoPointStamped, self.map_offset__cb,queue_size=2)
         # Plotting
         self.grid_plotted = False
 
@@ -238,11 +239,11 @@ class chlorophyll_sampler_node(object):
 
     def create_grid(self):
 
-        self.grid = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
+        self.grid, t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
         self.grid_lat = self.grid.grid[1]
         self.grid_lon = self.grid.grid[0]
-        self.grid_data = self.grid.values[:,:,self.grid_t_idx]
-        self.grid_t_idx = self.timestamp
+        self.grid_t_idx = t_idx
+        self.grid_data = self.grid.values
 
     def run_node(self):
         """ Start sampling """
@@ -267,7 +268,7 @@ class chlorophyll_sampler_node(object):
                 cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
                 cp = fig.colorbar(p, cax=cax)
                 cp.set_label("Chl a density [mm/mm3]")
-                ax.contour(xx, yy, self.grid_data levels=[self.delta_ref])
+                ax.contour(xx, yy, self.grid_data, levels=[self.delta_ref])
                 # plt.pause(0.0001)
 
                 self.grid_plotted = True
@@ -276,15 +277,21 @@ class chlorophyll_sampler_node(object):
             if self.grid_plotted and self.is_valid_gradient() and self.counter % 10 == 0:
                 ax.arrow(x=self.grad_lon, y=self.grad_lat, dx=0.00005*self.grad_x, dy=0.00005*self.grad_y, width=.00002) 
                 # plt.pause(0.0001)
+            else:
+                rospy.logwarn("Gradient is not valid...")
             
             # Plot position
             if self.grid_plotted and self.is_valid_position():
                 ax.plot(self.lon, self.lat,'r.', linewidth=1)                
                 # plt.pause(0.0001)
+            else:
+                rospy.logwarn("Position is not valid...")
 
             # Plot waypoint
             if self.grid_plotted and self.is_valid_waypoint():
                 ax.plot(self.wp_lon,self.wp_lat,'w.', linewidth=1)
+            else:
+                rospy.logwarn("Waypoint is not valid...")
                 
             plt.pause(0.0001)
 

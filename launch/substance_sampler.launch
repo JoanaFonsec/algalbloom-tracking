@@ -25,7 +25,7 @@
 		<!-- ============================================================================= -->
 		<!-- For mode 1, lat is "61.49" and lon is "20.9" -->
 		<param name="sam_starting_lat" value="61.49"  if="$(eval arg('mode') == 1)"/>       
-		<param name="sam_starting_lon" value="20.924"  if="$(eval arg('mode') == 1)"/>
+		<param name="sam_starting_lon" value="20.9"  if="$(eval arg('mode') == 1)"/>
 		<param name="map_starting_lat" value="61.49"  if="$(eval arg('mode') == 1)"/>       
 		<param name="map_starting_lon" value="20.924"  if="$(eval arg('mode') == 1)"/>
 		<param name="data_downs_scale_factor" value="1.0" if="$(eval arg('mode') == 1)"/>

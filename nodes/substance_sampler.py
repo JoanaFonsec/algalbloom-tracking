@@ -51,6 +51,8 @@ class substance_sampler_node(object):
 
         self.origin_lat = None
         self.origin_lon = None
+        self.gps_lat_offset = None
+        self.gps_lon_offset = None
         self.data_rotate_angle = rospy.get_param('~data_rotate_angle')
 
         # WGS84 grid (lookup-table for sampling)
@@ -64,7 +66,7 @@ class substance_sampler_node(object):
         self.sam_starting_lon = rospy.get_param('~sam_starting_lon')
         self.map_starting_lat = rospy.get_param('~map_starting_lat')
         self.map_starting_lon = rospy.get_param('~map_starting_lon')
-        self.grid = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
+        self.grid, t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
         
         # Publishers and subscribers
         self.dr_sub = rospy.Subscriber('~gps_topic', NavSatFix, self.lat_lon__cb,queue_size=2)
@@ -78,7 +80,7 @@ class substance_sampler_node(object):
     def lat_lon__cb(self,fb):
 
         # Determine the offset of the GPS
-        if not self.init and self.offset_map_and_gps:
+        if not self.init:
             self.gps_lat_offset = fb.latitude - self.sam_starting_lat
             self.gps_lon_offset = fb.longitude - self.sam_starting_lon
             self.init = True
@@ -116,6 +118,11 @@ class substance_sampler_node(object):
             rospy.loginfo("Grid offset {} - {}".format(self.gps_lon_offset, self.gps_lat_offset))
             rospy.loginfo("Current position {} - {}".format(self.lon, self.lat))
             return
+
+        if val is None:
+            rospy.logwarn("Measurement is None!")
+            rospy.loginfo("Position: ", self.lon, " - ", self.lat)
+            rospy.loginfo("Grid size: ", self.grid.grid[0][0], " - ", self.grid.grid[0][-1], " / ", self.grid.grid[1][0], " - ", self.grid.grid[1][-1])
 
         # Publish sample message
         sample = ChlorophyllSample()
