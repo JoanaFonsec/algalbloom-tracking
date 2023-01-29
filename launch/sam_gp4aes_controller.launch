@@ -14,6 +14,7 @@
 			<remap from="~measurement" to="algae_tracking/measurement"/>
 			<remap from="~gps" to="core/gps" />
 			<remap from="~go_to_waypoint_result" to="ctrl/goto_waypoint/result"/>
+			<remap from="~gps_offset" to="algae_tracking/lat_lon_offset"/>
 
 			<!-- Topics Published -->
 			<remap from="~gradient" to="algae_tracking/gradient"/>

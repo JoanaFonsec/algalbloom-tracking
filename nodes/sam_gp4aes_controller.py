@@ -44,6 +44,8 @@ class FrontTracking(object):
         self.position_measurement = None
         self.position = None
         self.waypoint_reached = True
+        self.gps_lat_offset = None
+        self.gps_lon_offset = None
 
         # Call subscribers, publishers, services
         self.set_subscribers_publishers()
@@ -57,30 +59,17 @@ class FrontTracking(object):
         Latlon topic subscriber callback:
         Update virtual position of the robot using dead reckoning
         """
+        if self.gps_lat_offset is None or self.gps_lon_offset is None:
+            return
+
         if fb.latitude > 1e-6 and fb.longitude > 1e-6:
             if self.position is None:
-                self.position = np.array([[fb.longitude, fb.latitude]])
+                self.position = np.array([[fb.longitude - self.gps_lon_offset, fb.latitude - self.gps_lat_offset]])
             else:
-                self.position = np.append(self.position, np.array([[fb.longitude, fb.latitude]]), axis=0)
+                self.position = np.append(self.position, np.array([[fb.longitude - self.gps_lon_offset, fb.latitude - self.gps_lat_offset]]), axis=0)
         else:
             rospy.logwarn("#PROBLEM# Received Zero GPS coordinates in Tracker!")
 
-
-    def waypoint_reached__cb(self, fb): 
-        """
-        Waypoint reached
-        Logic checking for proximity threshold is handled by the line following action
-        """
-        # if fb.result.reached_waypoint:
-        #     if fb.status.text == "WP Reached":
-        #         Check distance to waypoint
-        #         x,y = displacement(self.next_waypoint,self.position[-1, :])
-        #         dist = np.linalg.norm(np.array([x,y]))
-        #         rospy.loginfo("Distance to the waypoint : {}".format(dist))
-        #         if dist < self.waypoint_tolerance:
-        #             self.waypoint_reached = True
-        #     pass
-        # pass
 
     def measurement__cb(self, fb): 
         """
@@ -113,6 +102,13 @@ class FrontTracking(object):
                 self.position_measurement = position_measurement
         pass
 
+    def gps_offset__cb(self, msg):
+        """
+        Call for GPS offset, given by substance sampler
+        """
+        self.gps_lat_offset = msg.position.latitude
+        self.gps_lon_offset = msg.position.longitude
+
     ###############################################
     #           End Callbacks Region              #
     ###############################################
@@ -124,7 +120,7 @@ class FrontTracking(object):
         # Subscribers
         rospy.Subscriber('~measurement', ChlorophyllSample, self.measurement__cb)
         rospy.Subscriber('~gps', NavSatFix, self.position__cb)
-        rospy.Subscriber('~go_to_waypoint_result', GotoWaypointActionResult, self.waypoint_reached__cb, queue_size=2)
+        rospy.Subscriber('~gps_offset', GeoPointStamped, self.gps_offset__cb, queue_size=2)
 
         # Publishers
         self.enable_waypoint_pub = rospy.Publisher("~enable_live_waypoint", Bool, queue_size=1)
@@ -168,9 +164,9 @@ class FrontTracking(object):
         self.next_waypoint = np.array([[0, 0]])
 
         ############ Get the first measurement
-        while self.measurement is None or self.position is None:
+        while self.measurement is None or self.position is None or self.gps_lat_offset is None or self.gps_lon_offset is None:
             rospy.logwarn("Waiting for valida data: ")
-            rospy.logwarn("Measurement: {} - Position: {}".format(self.measurement, self.position))
+            rospy.logwarn("Measurement: {} - Position: {} - GPS Offset: {},{}".format(self.measurement, self.position, self.gps_lon_offset, self.gps_lat_offset))
             rospy.sleep(1)
 
 

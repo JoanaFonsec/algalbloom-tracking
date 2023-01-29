@@ -6,6 +6,7 @@ import scipy.io
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 import signal
+import time
 
 import rospy
 from std_msgs.msg import Float64, Header, Bool, Empty, Header
@@ -14,6 +15,8 @@ from geographic_msgs.msg import GeoPoint, GeoPointStamped
 from smarc_msgs.msg import ChlorophyllSample,GotoWaypoint,AlgaeFrontGradient
 
 from sensor_msgs.msg import NavSatFix
+
+from smarc_algal_bloom_tracking.util import read_mat_data_offset
 
 # Saving data
 # from utils.utils import Utils
@@ -102,13 +105,16 @@ def read_mat_data(timestamp,include_time=False,scale_factor=1,lat_shift=0,lon_sh
 
 class chlorophyll_sampler_node(object):
 
-    def offset__cb(self,fb):
+    def gps_offset__cb(self,fb):
         """
         Get offset for the purpose of plotting the grid
         """
 
         self.gps_lat_offset = fb.position.latitude
         self.gps_lon_offset = fb.position.longitude
+
+    def map_offset__cb(self, fb):
+        return
 
 
     def vp__cb(self,fb):
@@ -126,12 +132,6 @@ class chlorophyll_sampler_node(object):
 
     def waypoint__cb(self,fb):
 
-        # Rotate waypoint waypoint
-        # origin = (self.origin_lon,self.origin_lat)
-        # point = (fb.lon, fb.lat)
-        # angle = math.radians(self.data_rotate_angle)
-        # lon, lat = rotate(origin, point, -angle)
-        
         # Extract new waypoint
         if self.gps_lat_offset is not None and self.gps_lat_offset is not None:
             # rospy.loginfo("New waypoint received! : {} , {} ".format(fb.lat, fb.lon))
@@ -196,11 +196,13 @@ class chlorophyll_sampler_node(object):
         # WGS84 grid (lookup-table for sampling)
         self.include_time = False
         self.timestamp = 1618610399
-        self.grid = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor)
+        # self.grid = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor)
 
         # Check if data should be offset
         self.gps_lat_offset = None
         self.gps_lon_offset = None
+        self.map_starting_lat = None
+        self.map_starting_lon = None
 
         self.gps_topic = rospy.get_param('~gps_topic', '/sam/core/gps')
 
@@ -234,11 +236,25 @@ class chlorophyll_sampler_node(object):
         current_grad = [self.grad_lat,self.grad_lon,self.grad_x,self.grad_y]
         return None not in current_grad
 
+    def create_grid(self):
+
+        self.grid = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
+        self.grid_lat = self.grid.grid[1]
+        self.grid_lon = self.grid.grid[0]
+        self.grid_data = self.grid.values[:,:,self.grid_t_idx]
+        self.grid_t_idx = self.timestamp
+
     def run_node(self):
         """ Start sampling """
 
         # Sampling rate
         rate = rospy.Rate(1)
+
+        while self.gps_lat_offset is None or self.gps_lon_offset is None or self.map_starting_lat is None or self.map_starting_lon is None:
+            rospy.logwarn("[Plot Live Grid] Waiting for valida data")
+            time.sleep(1)
+
+        self.create_grid()
 
         while not rospy.is_shutdown():
 
@@ -246,12 +262,12 @@ class chlorophyll_sampler_node(object):
             if not self.grid_plotted and self.init:
 
                 ax.set_aspect('equal')
-                xx, yy = np.meshgrid(self.grid.lon, self.grid.lat, indexing='ij')
-                p = plt.pcolormesh(xx, yy, self.grid.data[:,:,self.grid.t_idx], cmap='viridis', shading='auto', vmin=0, vmax=10)
+                xx, yy = np.meshgrid(self.grid_lon, self.grid_lat, indexing='ij')
+                p = plt.pcolormesh(xx, yy, self.grid_data, cmap='viridis', shading='auto', vmin=0, vmax=10)
                 cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
                 cp = fig.colorbar(p, cax=cax)
                 cp.set_label("Chl a density [mm/mm3]")
-                ax.contour(xx, yy, self.grid.data[:,:,self.grid.t_idx], levels=[self.delta_ref])
+                ax.contour(xx, yy, self.grid_data levels=[self.delta_ref])
                 # plt.pause(0.0001)
 
                 self.grid_plotted = True
