@@ -21,7 +21,6 @@ from smarc_algal_bloom_tracking.util import save_raw_mission_data
 class FrontTracking(object):
 
     def __init__(self):
-        self.initial_heading = rospy.get_param('~initial_heading')                         # initial heading [degrees]
         self.delta_ref = rospy.get_param('~delta_ref')                                     # target chlorophyll value
         self.wp_distance = rospy.get_param('~wp_distance')                                 # wp_distance [m]
         self.n_meas = rospy.get_param('~n_measurements')                                   # number of samples before estimation
@@ -34,7 +33,6 @@ class FrontTracking(object):
         self.std = rospy.get_param('~std')                                                 # measurement noise
         self.alpha_seek = rospy.get_param('~alpha_seek')                                   # Controller param to seek front
         self.alpha_follow = rospy.get_param('~alpha_follow')                               # Controller param to follow front
-        self.gps_topic = rospy.get_param('~gps_topic', '/sam/core/gps')
         
         # Vehicle Controller
         self.ctl_rate = rospy.Rate(50)
@@ -44,6 +42,8 @@ class FrontTracking(object):
         self.position_measurement = None
         self.position = None
         self.waypoint_reached = True
+        self.gps_lat_offset = None
+        self.gps_lon_offset = None
 
         # Call subscribers, publishers, services
         self.set_subscribers_publishers()
@@ -57,30 +57,17 @@ class FrontTracking(object):
         Latlon topic subscriber callback:
         Update virtual position of the robot using dead reckoning
         """
+        if self.gps_lat_offset is None or self.gps_lon_offset is None:
+            return
+
         if fb.latitude > 1e-6 and fb.longitude > 1e-6:
             if self.position is None:
-                self.position = np.array([[fb.longitude, fb.latitude]])
+                self.position = np.array([[fb.longitude - self.gps_lon_offset, fb.latitude - self.gps_lat_offset]])
             else:
-                self.position = np.append(self.position, np.array([[fb.longitude, fb.latitude]]), axis=0)
+                self.position = np.append(self.position, np.array([[fb.longitude - self.gps_lon_offset, fb.latitude - self.gps_lat_offset]]), axis=0)
         else:
             rospy.logwarn("#PROBLEM# Received Zero GPS coordinates in Tracker!")
 
-
-    def waypoint_reached__cb(self, fb): 
-        """
-        Waypoint reached
-        Logic checking for proximity threshold is handled by the line following action
-        """
-        # if fb.result.reached_waypoint:
-        #     if fb.status.text == "WP Reached":
-        #         Check distance to waypoint
-        #         x,y = displacement(self.next_waypoint,self.position[-1, :])
-        #         dist = np.linalg.norm(np.array([x,y]))
-        #         rospy.loginfo("Distance to the waypoint : {}".format(dist))
-        #         if dist < self.waypoint_tolerance:
-        #             self.waypoint_reached = True
-        #     pass
-        # pass
 
     def measurement__cb(self, fb): 
         """
@@ -95,8 +82,6 @@ class FrontTracking(object):
         # read values (the sensor is responsible for providing the Geo stamp i.e. lat lon co-ordinates)
         position_measurement = np.array([[fb.lon, fb.lat]])
         sample = fb.sample
-
-        print("Measurement is ",sample)
 
         # Save the measurement if not Nan
         if np.isnan(sample):
@@ -113,6 +98,13 @@ class FrontTracking(object):
                 self.position_measurement = position_measurement
         pass
 
+    def gps_offset__cb(self, msg):
+        """
+        Call for GPS offset, given by substance sampler
+        """
+        self.gps_lat_offset = msg.position.latitude
+        self.gps_lon_offset = msg.position.longitude
+
     ###############################################
     #           End Callbacks Region              #
     ###############################################
@@ -124,7 +116,7 @@ class FrontTracking(object):
         # Subscribers
         rospy.Subscriber('~measurement', ChlorophyllSample, self.measurement__cb)
         rospy.Subscriber('~gps', NavSatFix, self.position__cb)
-        rospy.Subscriber('~go_to_waypoint_result', GotoWaypointActionResult, self.waypoint_reached__cb, queue_size=2)
+        rospy.Subscriber('~gps_offset', GeoPointStamped, self.gps_offset__cb, queue_size=2)
 
         # Publishers
         self.enable_waypoint_pub = rospy.Publisher("~enable_live_waypoint", Bool, queue_size=1)
@@ -159,7 +151,7 @@ class FrontTracking(object):
         alpha = 0.97
         weights_meas = [0.2, 0.3, 0.5]
         init_flag = True
-        init_heading = np.array([[1, 0]])
+        init_gradient = np.array([[1, 0]])
 
         ############ INIT vectors 
         gradient = np.empty((0,2))
@@ -168,22 +160,20 @@ class FrontTracking(object):
         self.next_waypoint = np.array([[0, 0]])
 
         ############ Get the first measurement
-        while self.measurement is None or self.position is None:
+        while self.measurement is None or self.position is None or self.gps_lat_offset is None or self.gps_lon_offset is None:
             rospy.logwarn("Waiting for valida data: ")
-            rospy.logwarn("Measurement: {} - Position: {}".format(self.measurement, self.position))
+            rospy.logwarn("Measurement: {} - Position: {} - GPS Offset: {},{}".format(self.measurement, self.position, self.gps_lon_offset, self.gps_lat_offset))
             rospy.sleep(1)
 
 
         ########### MISSION CYCLE
         while not rospy.is_shutdown():
-
+            
             ##### Init state - From beginning until at front
-            if (len(self.filtered_measurements) < self.n_meas or self.measurement[-1] < 0.95*dynamics.delta_ref) and init_flag is True:
-                gradient = np.append(gradient, init_heading[[0], :2] / np.linalg.norm(init_heading[0, :2]), axis=0)
+            if (len(self.filtered_measurements) < self.n_meas or self.measurement[-1] < 0.95*self.delta_ref) and init_flag is True:
+                gradient = np.append(gradient, init_gradient[[0], :2] / np.linalg.norm(init_gradient[0, :2]), axis=0)
                 self.filtered_gradient = np.append(self.filtered_gradient, gradient[[-1],:], axis=0)
                 self.filtered_measurements = np.append(self.filtered_measurements,self.measurement[-1])
-
-            # print("This is positions and measurement: ",self.position_measurement[-self.n_meas:],filtered_measurements[-self.n_meas:])
 
             ##### Main state - From reaching the front till the end 
             else:
@@ -196,11 +186,17 @@ class FrontTracking(object):
                 # Estimate and filter gradient
                 gradient_calculation = np.array(est.est_grad(self.position_measurement[-self.n_meas:, :].reshape((self.n_meas, 2)), self.filtered_measurements[-self.n_meas:].reshape((-1, 1)))).squeeze().reshape(-1, 2)
                 gradient = np.append(gradient, gradient_calculation / np.linalg.norm(gradient_calculation), axis=0)
-                self.filtered_gradient = np.append(self.filtered_gradient, self.filtered_gradient[[-2], :]*alpha + gradient[[-1], :]*(1-alpha), axis=0)
+                self.filtered_gradient = np.append(self.filtered_gradient, self.filtered_gradient[[-1], :]*alpha + gradient[[-1], :]*(1-alpha), axis=0)
 
+            print("measurement was", self.filtered_measurements[-1], "and gradient was", self.filtered_gradient[-1])
+            
             ##### Always - Calculate next waypoint
             control = dynamics(self.filtered_measurements[-1], self.filtered_gradient[-1,:], include_time=False)
             self.next_waypoint = controller.next_position(self.position[-1, :],control)
+            
+            # Convert back waypoints to simulator coordinates
+            self.next_waypoint[0, 0] = self.next_waypoint[0, 0] + self.gps_lon_offset
+            self.next_waypoint[0, 1] = self.next_waypoint[0, 1] + self.gps_lat_offset
             self.waypoint_reached = False
             publish_waypoint(self.latlontoutm_service,self.next_waypoint,self.waypoint_pub,self.enable_waypoint_pub,self.travel_rpm,self.speed,self.waypoint_tolerance)
 
@@ -226,16 +222,8 @@ class FrontTracking(object):
 
         out_path = rospy.get_param('~output_data_path')
         try :
-
-            # Trim arrays
-            traj = self.position
-            measurements = self.filtered_measurements
-            measurement_pos = self.position_measurement
-            grads=self.filtered_gradient
-            delta_ref = self.delta_ref
-
             # Write data to file
-            save_raw_mission_data(out_path=out_path, traj=traj,measurements=measurements,grads=grads,delta_ref=delta_ref,measurement_pos=measurement_pos)
+            save_raw_mission_data(out_path=out_path, traj=self.position,measurements=self.filtered_measurements,grads=self.filtered_gradient,delta_ref=self.delta_ref)
             rospy.logwarn("Data saved!")
 
         except Exception as e:

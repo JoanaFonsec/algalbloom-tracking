@@ -6,6 +6,7 @@ import scipy.io
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 import signal
+import time
 
 import rospy
 from std_msgs.msg import Float64, Header, Bool, Empty, Header
@@ -14,6 +15,8 @@ from geographic_msgs.msg import GeoPoint, GeoPointStamped
 from smarc_msgs.msg import ChlorophyllSample,GotoWaypoint,AlgaeFrontGradient
 
 from sensor_msgs.msg import NavSatFix
+
+from smarc_algal_bloom_tracking.util import read_mat_data_offset
 
 # Saving data
 # from utils.utils import Utils
@@ -102,7 +105,7 @@ def read_mat_data(timestamp,include_time=False,scale_factor=1,lat_shift=0,lon_sh
 
 class chlorophyll_sampler_node(object):
 
-    def offset__cb(self,fb):
+    def gps_offset__cb(self,fb):
         """
         Get offset for the purpose of plotting the grid
         """
@@ -110,6 +113,9 @@ class chlorophyll_sampler_node(object):
         self.gps_lat_offset = fb.position.latitude
         self.gps_lon_offset = fb.position.longitude
 
+    def map_offset__cb(self, fb):
+        self.map_starting_lat = fb.position.latitude
+        self.map_starting_lon = fb.position.longitude
 
     def vp__cb(self,fb):
 
@@ -126,20 +132,11 @@ class chlorophyll_sampler_node(object):
 
     def waypoint__cb(self,fb):
 
-        # Rotate waypoint waypoint
-        # origin = (self.origin_lon,self.origin_lat)
-        # point = (fb.lon, fb.lat)
-        # angle = math.radians(self.data_rotate_angle)
-        # lon, lat = rotate(origin, point, -angle)
-        
         # Extract new waypoint
-        if self.gps_lat_offset is not None and self.gps_lat_offset is not None:
-            # rospy.loginfo("New waypoint received! : {} , {} ".format(fb.lat, fb.lon))
-            self.wp_lat = fb.lat - self.gps_lat_offset
-            self.wp_lon = fb.lon - self.gps_lon_offset
-            rospy.loginfo("Waypoint: {} , {} ".format(self.wp_lat,self.wp_lon))
-        else:
-            rospy.logwarn("No GPS Offset received in Plot Live Grid")
+        self.wp_lat = fb.lat - self.gps_lat_offset
+        self.wp_lon = fb.lon - self.gps_lon_offset
+        # rospy.loginfo("Waypoint: {} , {} ".format(self.wp_lat,self.wp_lon))
+
 
     def lat_lon__cb(self,fb):
         
@@ -196,21 +193,22 @@ class chlorophyll_sampler_node(object):
         # WGS84 grid (lookup-table for sampling)
         self.include_time = False
         self.timestamp = 1618610399
-        self.grid = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor)
+        # self.grid = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor)
 
         # Check if data should be offset
         self.gps_lat_offset = None
         self.gps_lon_offset = None
-
-        self.gps_topic = rospy.get_param('~gps_topic', '/sam/core/gps')
+        self.map_starting_lat = None
+        self.map_starting_lon = None
 
         # Publishers and subscribers
         # self.dr_sub = rospy.Subscriber('/sam/dr/lat_lon', GeoPoint, self.lat_lon__cb, queue_size=2)
-        self.dr_sub = rospy.Subscriber(self.gps_topic, NavSatFix, self.lat_lon__cb, queue_size=2)
+        self.dr_sub = rospy.Subscriber('~gps_topic', NavSatFix, self.lat_lon__cb, queue_size=2)
         self.waypoint_sub = rospy.Subscriber(WAPOINT_TOPIC, GotoWaypoint, self.waypoint__cb, queue_size=2)
         self.gradient_sub = rospy.Subscriber(GRADIENT_TOPIC, AlgaeFrontGradient, self.gradient__cb, queue_size=2)
         self.vp_sub = rospy.Subscriber(VITUAL_POSITION_TOPIC, GeoPointStamped, self.vp__cb, queue_size=2)
-        self.lat_lon_offset_sub = rospy.Subscriber('/sam/algae_tracking/lat_lon_offset', GeoPointStamped, self.offset__cb,queue_size=2)
+        self.lat_lon_offset_sub = rospy.Subscriber('/sam/algae_tracking/lat_lon_offset', GeoPointStamped, self.gps_offset__cb,queue_size=2)
+        self.lat_lon_offset_sub = rospy.Subscriber('/sam/algae_tracking/map_offset', GeoPointStamped, self.map_offset__cb,queue_size=2)
         # Plotting
         self.grid_plotted = False
 
@@ -234,11 +232,25 @@ class chlorophyll_sampler_node(object):
         current_grad = [self.grad_lat,self.grad_lon,self.grad_x,self.grad_y]
         return None not in current_grad
 
+    def create_grid(self):
+
+        self.grid, t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
+        self.grid_lat = self.grid.grid[1]
+        self.grid_lon = self.grid.grid[0]
+        self.grid_t_idx = t_idx
+        self.grid_data = self.grid.values
+
     def run_node(self):
         """ Start sampling """
 
         # Sampling rate
         rate = rospy.Rate(1)
+
+        while self.gps_lat_offset is None or self.gps_lon_offset is None or self.map_starting_lat is None or self.map_starting_lon is None:
+            rospy.logwarn("[Plot Live Grid] Waiting for valida data")
+            time.sleep(1)
+
+        self.create_grid()
 
         while not rospy.is_shutdown():
 
@@ -246,29 +258,35 @@ class chlorophyll_sampler_node(object):
             if not self.grid_plotted and self.init:
 
                 ax.set_aspect('equal')
-                xx, yy = np.meshgrid(self.grid.lon, self.grid.lat, indexing='ij')
-                p = plt.pcolormesh(xx, yy, self.grid.data[:,:,self.grid.t_idx], cmap='viridis', shading='auto', vmin=0, vmax=10)
+                xx, yy = np.meshgrid(self.grid_lon, self.grid_lat, indexing='ij')
+                p = plt.pcolormesh(xx, yy, self.grid_data, cmap='viridis', shading='auto', vmin=0, vmax=10)
                 cax = fig.add_axes([ax.get_position().x1+0.01,ax.get_position().y0,0.02,ax.get_position().height])
                 cp = fig.colorbar(p, cax=cax)
                 cp.set_label("Chl a density [mm/mm3]")
-                ax.contour(xx, yy, self.grid.data[:,:,self.grid.t_idx], levels=[self.delta_ref])
+                ax.contour(xx, yy, self.grid_data, levels=[self.delta_ref])
                 # plt.pause(0.0001)
 
                 self.grid_plotted = True
 
             # Plot gradient
-            if self.grid_plotted and self.is_valid_gradient() and self.counter % 10 == 0:
-                ax.arrow(x=self.grad_lon, y=self.grad_lat, dx=0.00005*self.grad_x, dy=0.00005*self.grad_y, width=.00002) 
-                # plt.pause(0.0001)
+            # if self.grid_plotted and self.is_valid_gradient() and self.counter % 10 == 0:
+            #     ax.arrow(x=self.grad_lon, y=self.grad_lat, dx=0.00005*self.grad_x, dy=0.00005*self.grad_y, width=.00002) 
+            #     # plt.pause(0.0001)
+            # else:
+            #     rospy.logwarn("Gradient is not valid...")
             
             # Plot position
             if self.grid_plotted and self.is_valid_position():
                 ax.plot(self.lon, self.lat,'r.', linewidth=1)                
                 # plt.pause(0.0001)
+            else:
+                rospy.logwarn("Position is not valid...")
 
             # Plot waypoint
             if self.grid_plotted and self.is_valid_waypoint():
                 ax.plot(self.wp_lon,self.wp_lat,'w.', linewidth=1)
+            else:
+                rospy.logwarn("Waypoint is not valid...")
                 
             plt.pause(0.0001)
 

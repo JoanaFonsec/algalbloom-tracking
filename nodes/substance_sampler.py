@@ -12,7 +12,7 @@ from sensor_msgs.msg import NavSatFix
 import matplotlib.pyplot as plt
 
 # From other files
-from smarc_algal_bloom_tracking.util import read_mat_data, save_mission
+from smarc_algal_bloom_tracking.util import read_mat_data_offset, save_mission
 from smarc_algal_bloom_tracking.publishers import publish_offset
 
 fig,ax = plt.subplots()
@@ -51,32 +51,28 @@ class substance_sampler_node(object):
 
         self.origin_lat = None
         self.origin_lon = None
+        self.gps_lat_offset = None
+        self.gps_lon_offset = None
         self.data_rotate_angle = rospy.get_param('~data_rotate_angle')
 
         # WGS84 grid (lookup-table for sampling)
         self.include_time = False
         self.timestamp = 1618610399
-        self.grid, self.t_idx = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor)
-        # self.grid = None
-
-        # Check if data should be offset
-        self.gps_lat_offset = 0
-        self.gps_lon_offset = 0
-        self.lat_centre =  0
-        self.lon_centre =  0
-        self.offset_gps = rospy.get_param('~offset_gps')
-        if self.offset_gps:
-            self.lat_centre =  rospy.get_param('~starting_lat')
-            self.lon_centre =  rospy.get_param('~starting_lon')
-
-        self.gps_topic = rospy.get_param('~gps_topic', '/sam/core/gps')
+        
+        # In this case, we read two sets of params: map offset and sam offset
+        # - map offset: changes the grid location
+        # - sam offset: changes SAM's starting position
+        self.sam_starting_lat = rospy.get_param('~sam_starting_lat')
+        self.sam_starting_lon = rospy.get_param('~sam_starting_lon')
+        self.map_starting_lat = rospy.get_param('~map_starting_lat')
+        self.map_starting_lon = rospy.get_param('~map_starting_lon')
+        self.grid, self.t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
         
         # Publishers and subscribers
-        # self.dr_sub = rospy.Subscriber('/sam/dr/lat_lon', GeoPoint, self.lat_lon__cb, queue_size=2)
-        # self.dr_sub = rospy.Subscriber('/sam/dr/lat_lon', GeoPoint, self.lat_lon__cb, queue_size=2)
-        self.dr_sub = rospy.Subscriber(self.gps_topic, NavSatFix, self.lat_lon__cb,queue_size=2)
+        self.dr_sub = rospy.Subscriber('~gps_topic', NavSatFix, self.lat_lon__cb,queue_size=2)
         self.chlorophyll_publisher = rospy.Publisher('/sam/algae_tracking/measurement', ChlorophyllSample, queue_size=1)
         self.lat_lon_offset_publisher = rospy.Publisher('/sam/algae_tracking/lat_lon_offset', GeoPointStamped, queue_size=2)
+        self.map_offset_publisher = rospy.Publisher('/sam/algae_tracking/map_offset', GeoPointStamped, queue_size=2)
 
         # Plotting
         self.grid_plotted = False
@@ -84,12 +80,14 @@ class substance_sampler_node(object):
     def lat_lon__cb(self,fb):
 
         # Determine the offset of the GPS
-        if not self.init and self.offset_gps:
-            self.gps_lat_offset = fb.latitude - self.lat_centre
-            self.gps_lon_offset = fb.longitude - self.lon_centre
+        if not self.init:
+            self.gps_lat_offset = fb.latitude - self.sam_starting_lat
+            self.gps_lon_offset = fb.longitude - self.sam_starting_lon
+            self.init = True
 
         # Publish offset (for the purpose of plottting in plot_live_grid)
         publish_offset(lat=self.gps_lat_offset,lon=self.gps_lon_offset,pub=self.lat_lon_offset_publisher)
+        publish_offset(lat=self.map_starting_lat,lon=self.map_starting_lon,pub=self.map_offset_publisher)
 
         # Get position
         if fb.latitude > 1e-6 and fb.longitude > 1e-6:
@@ -97,32 +95,6 @@ class substance_sampler_node(object):
             self.lon = fb.longitude - self.gps_lon_offset
         else:
             rospy.logwarn("#PROBLEM# Received Zero GPS coordinates!")
-
-
-        # Check offset correct set
-        # if not self.init:
-
-        #     # Determine offsets
-        #     lat_error = (self.lat - self.gps_lat_offset) - self.lat_centre
-        #     long_Error = (self.lon - self.gps_lon_offset) - self.lon_centre
-        #     rospy.loginfo("Offset error : {}, {}".format(lat_error,long_Error))
-        #     rospy.loginfo("Offset lat : {}".format(self.gps_lat_offset))
-        #     rospy.loginfo("Offset lon : {}".format(self.gps_lon_offset))
-
-        #     # Offset the data
-        #     self.grid, self.t_idx = read_mat_data(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_shift=self.gps_lat_offset,lon_shift=self.gps_lon_offset)
-
-        #     # Set origin of rotation
-        #     self.origin_lat = self.lat
-        #     self.origin_lon = self.lon
-
-        # Rotate data       
-        # origin = (self.origin_lon,self.origin_lat)
-        # point = (self.lon, self.lat)
-        # angle = math.radians(self.data_rotate_angle)
-        # self.lon, self.lat = rotate(origin, point, -angle)
-
-        self.init = True
 
     def publish_sample(self):
         """ Publish Chlorophyll Sample"""
@@ -146,6 +118,11 @@ class substance_sampler_node(object):
             rospy.loginfo("Grid offset {} - {}".format(self.gps_lon_offset, self.gps_lat_offset))
             rospy.loginfo("Current position {} - {}".format(self.lon, self.lat))
             return
+
+        if val is None:
+            rospy.logwarn("Measurement is None!")
+            rospy.loginfo("Position: ", self.lon, " - ", self.lat)
+            rospy.loginfo("Grid size: ", self.grid.grid[0][0], " - ", self.grid.grid[0][-1], " / ", self.grid.grid[1][0], " - ", self.grid.grid[1][-1])
 
         # Publish sample message
         sample = ChlorophyllSample()
@@ -188,6 +165,9 @@ class substance_sampler_node(object):
         # sample_params
         sample_params = {}
         for key in self.sampler_params:
+            print("key: ", key)
+            sample_params[key] = None
+            print("Param: ", rospy.get_param(key))
             sample_params[key] = rospy.get_param(key)
         
         #print('meas_per at simulated_chl_sampler is ', self.update_period)
