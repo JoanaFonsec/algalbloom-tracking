@@ -7,7 +7,7 @@ import signal
 from std_msgs.msg import Bool
 from geographic_msgs.msg import GeoPointStamped
 from sensor_msgs.msg import NavSatFix
-from smarc_msgs.msg import GotoWaypoint, GotoWaypointActionResult, ChlorophyllSample, AlgaeFrontGradient
+from smarc_msgs.msg import GotoWaypointActionGoal, GotoWaypointActionResult, ChlorophyllSample, AlgaeFrontGradient
 from smarc_msgs.srv import LatLonToUTM
 
 # GP4AES imports
@@ -128,7 +128,7 @@ class FrontTracking(object):
 
         # Publishers
         self.enable_waypoint_pub = rospy.Publisher("~enable_live_waypoint", Bool, queue_size=1)
-        self.waypoint_pub = rospy.Publisher("~live_waypoint", GotoWaypoint, queue_size=5)
+        self.waypoint_pub = rospy.Publisher("~live_waypoint", GotoWaypointActionGoal, queue_size=5)
         self.vp_pub = rospy.Publisher("~virtual_position", GeoPointStamped, queue_size=1)
         self.gradient_pub = rospy.Publisher("~gradient", AlgaeFrontGradient, queue_size=1)
 
