@@ -152,7 +152,7 @@ class FrontTracking(object):
         # Dynamics
         dynamics = controller.Dynamics(self.alpha_seek, self.alpha_follow, self.delta_ref, self.wp_distance)
         # Gaussian Process
-        est = gpr.GPEstimator(self.kernel, self.std, self.range, self.kernel_params)
+        est = gpr.GPEstimator(self.kernel, self.std, self.kernel_params)
 
         ############ Tunable parameters
         meas_filter_len = 3 

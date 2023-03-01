@@ -48,6 +48,8 @@ class substance_sampler_node(object):
         # Real position
         self.lat = None
         self.lon = None
+        self.gps_lat_offset = None
+        self.gps_lon_offset = None
 
         self.origin_lat = None
         self.origin_lon = None

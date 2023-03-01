@@ -1,7 +1,7 @@
 <launch>
 	<!-- Data parameters -->
 	<arg name="output_data_path" default="/home/jfgf/catkin_ws/src/smarc_algal_bloom_tracking/output"/>
-	<arg name="robot_name" default="sam"/>
+	<arg name="robot_name" default="lolo"/>
 	
 
 	<!-- Tracker node -->
@@ -17,12 +17,12 @@
 
 			<!-- Topics Published -->
 			<remap from="~gradient" to="algae_tracking/gradient"/>
-			<remap from="~live_waypoint" to="smarc_bt/live_wp/wp"/>
+			<remap from="~live_waypoint" to="ctrl/goto_waypoint/goal"/>
 			<remap from="~virtual_position" to="algae_tracking/vp"/>
 			<remap from="~enable_live_waypoint" to="smarc_bt/live_wp/enable"/>
 
 			<!-- Service Clients -->
-			<remap from="~lat_lon_utm_srv" to="dr/lat_lon_to_utm"/>
+			<remap from="~lat_lon_utm_srv" to="lat_lon_to_utm"/>
 
 		</node>
 	</group>
