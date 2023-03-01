@@ -15,14 +15,6 @@ import matplotlib.pyplot as plt
 from smarc_algal_bloom_tracking.util import read_mat_data_offset, save_mission
 from smarc_algal_bloom_tracking.publishers import publish_offset
 
-fig,ax = plt.subplots()
-
-# Constants
-GRADIENT_TOPIC = '/sam/algae_tracking/gradient'
-VITUAL_POSITION_TOPIC = '/sam/algae_tracking/vp'
-LIVE_WP_BASE_TOPIC = 'sam/smarc_bt/live_wp/'
-WAPOINT_TOPIC=LIVE_WP_BASE_TOPIC+'wp'
-
 class substance_sampler_node(object):
 
     def __init__(self):
@@ -68,12 +60,12 @@ class substance_sampler_node(object):
             self.sam_starting_lon = rospy.get_param('~sam_starting_lon')
             self.map_starting_lat = rospy.get_param('~map_starting_lat')
             self.map_starting_lon = rospy.get_param('~map_starting_lon')
-            self.grid = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
+            self.grid, t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
         
         # Publishers and subscribers
         self.dr_sub = rospy.Subscriber('~gps_topic', NavSatFix, self.lat_lon__cb,queue_size=2)
-        self.chlorophyll_publisher = rospy.Publisher('/sam/algae_tracking/measurement', ChlorophyllSample, queue_size=1)
-        self.lat_lon_offset_publisher = rospy.Publisher('/sam/algae_tracking/lat_lon_offset', GeoPointStamped, queue_size=2)
+        self.chlorophyll_publisher = rospy.Publisher('~measurement', ChlorophyllSample, queue_size=1)
+        self.lat_lon_offset_publisher = rospy.Publisher('~lat_lon_offset', GeoPointStamped, queue_size=2)
 
         # Plotting
         self.grid_plotted = False
@@ -110,6 +102,7 @@ class substance_sampler_node(object):
         # Get sample
         try:
             std = 1e-3 # standard deviation of measurement
+            print("")
             val = self.grid(current_position) + np.random.normal(0, std)
         except Exception as e:
             rospy.logwarn("Caught in Exception!")

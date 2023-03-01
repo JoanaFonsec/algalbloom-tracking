@@ -22,7 +22,7 @@
 			<remap from="~enable_live_waypoint" to="smarc_bt/live_wp/enable"/>
 
 			<!-- Service Clients -->
-			<remap from="~lat_lon_utm_srv" to="lat_lon_to_utm"/>
+			<remap from="~lat_lon_to_utm" to="lat_lon_to_utm"/>
 
 		</node>
 	</group>

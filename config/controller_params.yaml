@@ -3,7 +3,7 @@ threshold: 0.1
 n_measurements: 200
 speed: 1.0
 travel_rpm: 1180
-waypoint_tolerance: 40
+waypoint_tolerance: 1
 range: 20
 
 # plan parameters

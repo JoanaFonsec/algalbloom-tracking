@@ -147,15 +147,9 @@ def read_mat_data(timestamp,include_time=False,scale_factor=1,lat_shift=0,lon_sh
     lon = lon + lon_shift
 
     # Logging
-    rospy.loginfo('Scale factor : {}'.format(scale_factor))
-    rospy.loginfo("Dimensions of lat {} - {}".format(lat[0],lat[-1]))
-    rospy.loginfo("Dimensions of lon {} - {}".format(lon[0],lon[-1]))
-
-    # Print
-    if True:
-        print('Scale factor : {}'.format(scale_factor))
-        print("Dimensions of lat {} - {}".format(lat[0],lat[-1]))
-        print("Dimensions of lon {} - {}".format(lon[0],lon[-1]))
+    rospy.loginfo('[UTIL] Scale factor : {}'.format(scale_factor))
+    rospy.loginfo("[UTIL] Dimensions of lat {} - {}".format(lat[0],lat[-1]))
+    rospy.loginfo("[UTIL] Dimensions of lon {} - {}".format(lon[0],lon[-1]))
 
     t_idx = np.argmin(np.abs(timestamp - time))
 
@@ -197,12 +191,13 @@ def read_mat_data_offset(timestamp,include_time=False,scale_factor=1,lat_start=0
     lon = lon + lon_offset
 
     # Logging
-    rospy.loginfo('Scale factor : {}'.format(scale_factor))
-    rospy.loginfo("Dimensions of lat {} - {}".format(lat[0],lat[-1]))
-    rospy.loginfo("Dimensions of lon {} - {}".format(lon[0],lon[-1]))
+    rospy.loginfo('[UTIL-OFFSET] Scale factor : {}'.format(scale_factor))
+    rospy.loginfo("[UTIL-OFFSET] Dimensions of lat {} - {}".format(lat[0],lat[-1]))
+    rospy.loginfo("[UTIL-OFFSET] Dimensions of lon {} - {}".format(lon[0],lon[-1]))
 
     # Print
     if True:
+        print("Debugging read_mat_data_offset...")
         print('Scale factor : {}'.format(scale_factor))
         print("Dimensions of lat {} - {}".format(lat[0],lat[-1]))
         print("Dimensions of lon {} - {}".format(lon[0],lon[-1]))

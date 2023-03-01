@@ -137,13 +137,12 @@ class FrontTracking(object):
         Helper function to create all services.
         """
 
-        service = '/sam/dr/lat_lon_to_utm'
         try:
-            rospy.wait_for_service(service, timeout=1)
+            rospy.wait_for_service('~lat_lon_to_utm', timeout=1)
         except:
-            rospy.logwarn(str(service)+" service not found!")
+            rospy.logwarn(" service not found!")
 
-        self.latlontoutm_service = rospy.ServiceProxy(service,LatLonToUTM)
+        self.latlontoutm_service = rospy.ServiceProxy('~lat_lon_to_utm', LatLonToUTM)
 
     ############################################################################################################
     def run(self):
