@@ -46,7 +46,7 @@ def publish_vp(lat,lon,vp_pub):
     vp_pub.publish(msg)   
 
 
-def publish_waypoint(latlontoutm_service,next_waypoint,waypoint_pub,enable_waypoint_pub,travel_rpm,speed,waypoint_tolerance):    
+def publish_waypoint(latlontoutm_service,next_waypoint,waypoint_pub,travel_rpm,speed,waypoint_tolerance):    
     """ Publish waypoint to SAM"""
 
     # Convert lat,lon to UTM
@@ -64,24 +64,19 @@ def publish_waypoint(latlontoutm_service,next_waypoint,waypoint_pub,enable_waypo
     speed_control_mode = [GotoWaypoint.SPEED_CONTROL_RPM,GotoWaypoint.SPEED_CONTROL_SPEED]
 
     # Waypoint message
-    msg = GotoWaypointActionGoal()
-    msg.goal.waypoint.travel_depth = -1
-    msg.goal.waypoint.goal_tolerance = waypoint_tolerance
-    msg.goal.waypoint.lat = next_waypoint[0, 1]
-    msg.goal.waypoint.lon = next_waypoint[0, 0]
-    msg.goal.waypoint.z_control_mode = z_control_modes[0]
-    msg.goal.waypoint.travel_rpm = travel_rpm
-    msg.goal.waypoint.speed_control_mode = speed_control_mode[0]
-    msg.goal.waypoint.travel_speed = speed
-    msg.goal.waypoint.pose.header.frame_id = 'utm'
-    msg.goal.waypoint.pose.header.stamp = rospy.Time.now()
-    msg.goal.waypoint.pose.pose.position.x = x
-    msg.goal.waypoint.pose.pose.position.y = y
-
-    # Enable waypoint following
-    enable_waypoint_following = Bool()
-    enable_waypoint_following.data = True
-    enable_waypoint_pub.publish(enable_waypoint_following)
+    msg = GotoWaypoint()
+    msg.travel_depth = -1
+    msg.goal_tolerance = waypoint_tolerance
+    msg.lat = next_waypoint[0, 1]
+    msg.lon = next_waypoint[0, 0]
+    msg.z_control_mode = z_control_modes[0]
+    msg.travel_rpm = travel_rpm
+    msg.speed_control_mode = speed_control_mode[0]
+    msg.travel_speed = speed
+    msg.pose.header.frame_id = 'utm'
+    msg.pose.header.stamp = rospy.Time.now()
+    msg.pose.pose.position.x = x
+    msg.pose.pose.position.y = y
 
     # Publish waypoint
     waypoint_pub.publish(msg)

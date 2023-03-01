@@ -1,9 +1,7 @@
-wp_distance: 50.0
 threshold: 0.1
 n_measurements: 200
 speed: 1.0
-travel_rpm: 1180
-waypoint_tolerance: 1
+travel_rpm: 615
 range: 20
 
 # plan parameters

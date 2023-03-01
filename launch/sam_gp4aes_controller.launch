@@ -13,13 +13,15 @@
 			<!-- Topics Subscribed -->
 			<remap from="~measurement" to="algae_tracking/measurement"/>
 			<remap from="~gps" to="core/gps" />
-			<remap from="~go_to_waypoint_result" to="ctrl/goto_waypoint/result"/>
 
 			<!-- Topics Published -->
 			<remap from="~gradient" to="algae_tracking/gradient"/>
-			<remap from="~live_waypoint" to="ctrl/goto_waypoint/goal"/>
 			<remap from="~virtual_position" to="algae_tracking/vp"/>
-			<remap from="~enable_live_waypoint" to="smarc_bt/live_wp/enable"/>
+			<remap from="~yaw_setpoint" to="ctrl/yaw_setpoint"/>
+			<remap from="~thruster_1" to="core/thruster1_cmd"/>
+			<remap from="~thruster_2" to="core/thruster2_cmd"/>
+			
+			<remap from="~live_waypoint" to="ctrl/waypoint_viz"/>
 
 			<!-- Service Clients -->
 			<remap from="~lat_lon_to_utm" to="lat_lon_to_utm"/>

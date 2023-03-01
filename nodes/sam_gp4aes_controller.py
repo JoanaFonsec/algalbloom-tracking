@@ -2,13 +2,15 @@
 import numpy as np
 import rospy
 import signal
+import math
 
 # Smarc imports
 from std_msgs.msg import Bool
 from geographic_msgs.msg import GeoPointStamped
 from sensor_msgs.msg import NavSatFix
-from smarc_msgs.msg import GotoWaypointActionGoal, GotoWaypointActionResult, ChlorophyllSample, AlgaeFrontGradient
+from smarc_msgs.msg import ChlorophyllSample, AlgaeFrontGradient, ThrusterRPM, GotoWaypoint
 from smarc_msgs.srv import LatLonToUTM
+from std_msgs.msg import Float64
 
 # GP4AES imports
 import gp4aes.estimator.GPR as gpr
@@ -23,11 +25,11 @@ class FrontTracking(object):
     def __init__(self):
         self.initial_heading = rospy.get_param('~initial_heading')                         # initial heading [degrees]
         self.delta_ref = rospy.get_param('~delta_ref')                                     # target chlorophyll value
-        self.wp_distance = rospy.get_param('~wp_distance')                                 # wp_distance [m]
+        self.wp_distance = 50                                 # wp_distance [m]
         self.n_meas = rospy.get_param('~n_measurements')                                   # number of samples before estimation
         self.speed = rospy.get_param('~speed')                                             # waypoint following speed [m/s]
         self.travel_rpm = rospy.get_param('~travel_rpm')                                   # waypoint target rotation speed
-        self.waypoint_tolerance = rospy.get_param('~waypoint_tolerance')                   # waypoint tolerance [m]
+        self.waypoint_tolerance = 1                   # waypoint tolerance [m]
         self.range = rospy.get_param('~range')                                             # estimation circle radius [m]
         self.kernel_params = rospy.get_param('~kernel_params')                             # kernel parameters obtained through training
         self.kernel = rospy.get_param('~kernel')                                           # name of the kernel to use: RQ or MAT
@@ -64,23 +66,6 @@ class FrontTracking(object):
                 self.position = np.append(self.position, np.array([[fb.longitude, fb.latitude]]), axis=0)
         else:
             rospy.logwarn("#PROBLEM# Received Zero GPS coordinates in Tracker!")
-
-
-    def waypoint_reached__cb(self, fb): 
-        """
-        Waypoint reached
-        Logic checking for proximity threshold is handled by the line following action
-        """
-        # if fb.result.reached_waypoint:
-        #     if fb.status.text == "WP Reached":
-        #         Check distance to waypoint
-        #         x,y = displacement(self.next_waypoint,self.position[-1, :])
-        #         dist = np.linalg.norm(np.array([x,y]))
-        #         rospy.loginfo("Distance to the waypoint : {}".format(dist))
-        #         if dist < self.waypoint_tolerance:
-        #             self.waypoint_reached = True
-        #     pass
-        # pass
 
     def measurement__cb(self, fb): 
         """
@@ -124,13 +109,15 @@ class FrontTracking(object):
         # Subscribers
         rospy.Subscriber('~measurement', ChlorophyllSample, self.measurement__cb)
         rospy.Subscriber('~gps', NavSatFix, self.position__cb)
-        rospy.Subscriber('~go_to_waypoint_result', GotoWaypointActionResult, self.waypoint_reached__cb, queue_size=2)
 
         # Publishers
-        self.enable_waypoint_pub = rospy.Publisher("~enable_live_waypoint", Bool, queue_size=1)
-        self.waypoint_pub = rospy.Publisher("~live_waypoint", GotoWaypointActionGoal, queue_size=5)
-        self.vp_pub = rospy.Publisher("~virtual_position", GeoPointStamped, queue_size=1)
+        self.thruster_1_pub = rospy.Publisher("~thruster_1", ThrusterRPM, queue_size=1)
+        self.thruster_2_pub = rospy.Publisher("~thruster_2", ThrusterRPM, queue_size=1)
+        self.yaw_setpoint_pub = rospy.Publisher("~yaw_setpoint", Float64, queue_size=1)
         self.gradient_pub = rospy.Publisher("~gradient", AlgaeFrontGradient, queue_size=1)
+
+        # Publisher for plotter
+        self.waypoint_pub = rospy.Publisher("~live_waypoint", GotoWaypoint, queue_size=1)
 
     def set_services(self):
         """
@@ -143,6 +130,21 @@ class FrontTracking(object):
             rospy.logwarn(" service not found!")
 
         self.latlontoutm_service = rospy.ServiceProxy('~lat_lon_to_utm', LatLonToUTM)
+
+    def publish_yaw_setpoint(self, control_vector):
+        
+        yaw_setpoint = math.atan2(control_vector[1], control_vector[0])
+
+        thruster_cmd = ThrusterRPM()
+        thruster_cmd.rpm = self.travel_rpm
+
+        self.thruster_1_pub.publish(thruster_cmd)
+        self.thruster_2_pub.publish(thruster_cmd)
+
+        yaw_sp_cmd = Float64()
+        yaw_sp_cmd.data = yaw_setpoint
+        self.yaw_setpoint_pub.publish(yaw_sp_cmd)
+
 
     ############################################################################################################
     def run(self):
@@ -201,7 +203,8 @@ class FrontTracking(object):
             control = dynamics(self.filtered_measurements[-1], self.filtered_gradient[-1,:], include_time=False)
             self.next_waypoint = controller.next_position(self.position[-1, :],control)
             self.waypoint_reached = False
-            publish_waypoint(self.latlontoutm_service,self.next_waypoint,self.waypoint_pub,self.enable_waypoint_pub,self.travel_rpm,self.speed,self.waypoint_tolerance)
+            publish_waypoint(self.latlontoutm_service,self.next_waypoint,self.waypoint_pub,self.travel_rpm,self.speed,self.waypoint_tolerance)
+            self.publish_yaw_setpoint(control)
 
             if self.next_waypoint[0, 1] > 61.64:
                 break
