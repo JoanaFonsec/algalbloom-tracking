@@ -11,7 +11,7 @@ import rospy
 from std_msgs.msg import Float64, Header, Bool, Empty, Header
 from geographic_msgs.msg import GeoPoint, GeoPointStamped
 
-from smarc_msgs.msg import ChlorophyllSample, GotoWaypointActionGoal, AlgaeFrontGradient
+from smarc_msgs.msg import ChlorophyllSample, GotoWaypointActionGoal, AlgaeFrontGradient, GotoWaypoint
 
 from sensor_msgs.msg import NavSatFix
 
@@ -114,8 +114,8 @@ class chlorophyll_sampler_node(object):
         # Extract new waypoint
         if self.gps_lat_offset is not None and self.gps_lat_offset is not None:
             # rospy.loginfo("New waypoint received! : {} , {} ".format(fb.lat, fb.lon))
-            self.wp_lat = fb.goal.waypoint.lat - self.gps_lat_offset
-            self.wp_lon = fb.goal.waypoint.lon - self.gps_lon_offset
+            self.wp_lat = fb.lat - self.gps_lat_offset
+            self.wp_lon = fb.lon - self.gps_lon_offset
             rospy.loginfo("Waypoint: {} , {} ".format(self.wp_lat,self.wp_lon))
         else:
             rospy.logwarn("No GPS Offset received in Plot Live Grid")
@@ -185,7 +185,7 @@ class chlorophyll_sampler_node(object):
         # Publishers and subscribers
         # self.dr_sub = rospy.Subscriber('/sam/dr/lat_lon', GeoPoint, self.lat_lon__cb, queue_size=2)
         self.dr_sub = rospy.Subscriber('~gps', NavSatFix, self.lat_lon__cb, queue_size=2)
-        self.waypoint_sub = rospy.Subscriber('~live_waypoint', GotoWaypointActionGoal, self.waypoint__cb, queue_size=2)
+        self.waypoint_sub = rospy.Subscriber('~live_waypoint', GotoWaypoint, self.waypoint__cb, queue_size=2)
         self.gradient_sub = rospy.Subscriber('~gradient', AlgaeFrontGradient, self.gradient__cb, queue_size=2)
         self.lat_lon_offset_sub = rospy.Subscriber('~lat_lon_offset', GeoPointStamped, self.offset__cb, queue_size=2)
         # Plotting

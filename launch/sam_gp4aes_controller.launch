@@ -1,6 +1,6 @@
 <launch>
 	<!-- Data parameters -->
-	<arg name="output_data_path" default="/home/jfgf/catkin_ws/src/smarc_algal_bloom_tracking/output"/>
+	<arg name="output_data_path" default="/home/jfgf/lolo_ws/src/algalbloom-tracking/output"/>
 	<arg name="robot_name" default="lolo"/>
 	
 
@@ -13,6 +13,7 @@
 			<!-- Topics Subscribed -->
 			<remap from="~measurement" to="algae_tracking/measurement"/>
 			<remap from="~gps" to="core/gps" />
+			<remap from="~gps_offset" to="algae_tracking/lat_lon_offset" />
 
 			<!-- Topics Published -->
 			<remap from="~gradient" to="algae_tracking/gradient"/>
@@ -24,7 +25,7 @@
 			<remap from="~live_waypoint" to="ctrl/waypoint_viz"/>
 
 			<!-- Service Clients -->
-			<remap from="~lat_lon_to_utm" to="lat_lon_to_utm"/>
+			<remap from="~lat_lon_to_utm" to="lat_lon_to_utm"/> <!-- add dr/ for SAM -->
 
 		</node>
 	</group>

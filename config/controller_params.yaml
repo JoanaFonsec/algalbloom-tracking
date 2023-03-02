@@ -1,7 +1,15 @@
 threshold: 0.1
 n_measurements: 200
 speed: 1.0
-travel_rpm: 615
+
+# For Lolo
+travel_rpm_thruster_1: 492  # in case of using waypoint navigation, set here travel rpm
+travel_rpm_thruster_2: 492
+
+# For SAM
+# travel_rpm_thruster_1: 915  # in case of using waypoint navigation, set here travel rpm
+# travel_rpm_thruster_2: 915
+
 range: 20
 
 # plan parameters
@@ -14,5 +22,5 @@ kernel_params: [44.29588721, 0.54654887, 0.26656638]
 std: 0.001
 
 # Controller parameters
-alpha_seek: 50
+alpha_seek: 20
 alpha_follow: 1

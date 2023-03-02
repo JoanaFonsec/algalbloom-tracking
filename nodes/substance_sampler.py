@@ -51,21 +51,20 @@ class substance_sampler_node(object):
         self.include_time = False
         self.timestamp = 1618610399
         
-        self.offset_map_and_gps = rospy.get_param('~offset_map_and_gps')
-        if self.offset_map_and_gps:
-            # In this case, we read two sets of params: map offset and sam offset
-            # - map offset: changes the grid location
-            # - sam offset: changes SAM's starting position
-            self.sam_starting_lat = rospy.get_param('~sam_starting_lat')
-            self.sam_starting_lon = rospy.get_param('~sam_starting_lon')
-            self.map_starting_lat = rospy.get_param('~map_starting_lat')
-            self.map_starting_lon = rospy.get_param('~map_starting_lon')
-            self.grid, t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
+        # In this case, we read two sets of params: map offset and sam offset
+        # - map offset: changes the grid location
+        # - sam offset: changes SAM's starting position
+        self.sam_starting_lat = rospy.get_param('~sam_starting_lat')
+        self.sam_starting_lon = rospy.get_param('~sam_starting_lon')
+        self.map_starting_lat = rospy.get_param('~map_starting_lat')
+        self.map_starting_lon = rospy.get_param('~map_starting_lon')
+        self.grid, self.t_idx = read_mat_data_offset(self.timestamp, include_time=self.include_time,scale_factor=self.scale_factor,lat_start=self.map_starting_lat,lon_start=self.map_starting_lon)
         
         # Publishers and subscribers
         self.dr_sub = rospy.Subscriber('~gps_topic', NavSatFix, self.lat_lon__cb,queue_size=2)
         self.chlorophyll_publisher = rospy.Publisher('~measurement', ChlorophyllSample, queue_size=1)
         self.lat_lon_offset_publisher = rospy.Publisher('~lat_lon_offset', GeoPointStamped, queue_size=2)
+        self.map_offset_publisher = rospy.Publisher('~map_offset', GeoPointStamped, queue_size=2)
 
         # Plotting
         self.grid_plotted = False
@@ -73,13 +72,14 @@ class substance_sampler_node(object):
     def lat_lon__cb(self,fb):
 
         # Determine the offset of the GPS
-        if not self.init and self.offset_map_and_gps:
+        if not self.init:
             self.gps_lat_offset = fb.latitude - self.sam_starting_lat
             self.gps_lon_offset = fb.longitude - self.sam_starting_lon
             self.init = True
 
         # Publish offset (for the purpose of plottting in plot_live_grid)
         publish_offset(lat=self.gps_lat_offset,lon=self.gps_lon_offset,pub=self.lat_lon_offset_publisher)
+        publish_offset(lat=self.map_starting_lat,lon=self.map_starting_lon,pub=self.map_offset_publisher)
 
         # Get position
         if fb.latitude > 1e-6 and fb.longitude > 1e-6:
@@ -111,6 +111,11 @@ class substance_sampler_node(object):
             rospy.loginfo("Grid offset {} - {}".format(self.gps_lon_offset, self.gps_lat_offset))
             rospy.loginfo("Current position {} - {}".format(self.lon, self.lat))
             return
+
+        if val is None:
+            rospy.logwarn("Measurement is None!")
+            rospy.loginfo("Position: ", self.lon, " - ", self.lat)
+            rospy.loginfo("Grid size: ", self.grid.grid[0][0], " - ", self.grid.grid[0][-1], " / ", self.grid.grid[1][0], " - ", self.grid.grid[1][-1])
 
         # Publish sample message
         sample = ChlorophyllSample()
